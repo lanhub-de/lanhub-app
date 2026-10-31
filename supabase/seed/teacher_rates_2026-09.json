@@ -1,62 +1,282 @@
 {
-  "_about": "Current teacher rates in UAH, from the September 2026 payout list. Applied once each teacher has an account. band A = A0-A2, B = B1 and above. market intl = international students.",
-  "_open_questions": [
-    "Teachers on 400/420/460: which B1+ students are paid 460 instead of 420? Set as per-student rates.",
-    "Agata: 'Б1.2 800 грн' in September: a group with its own rate per lesson, or a one-off?",
-    "Agata and Hanna: is A0-A2 for them 450 like the rest of the 450/520 tier?",
-    "Olena (younger): the list says 'підвищувати?'. Raise to 450/520 or keep 400/420?"
-  ],
+  "_about": "Current teacher rates in UAH, from the September 2026 payout list. Applied once each teacher has an account. band A = A0-A2, B = B1 and above. market intl = international students. Confirmed by Yulianna 31.10.2026: September rates are current; 400-tier teachers get 420 for B1+ on an 8-lesson package and 460 on a 12-lesson package; Agata's 'Б1.2 800' was a one-off.",
+  "_open_questions": [],
   "teachers": [
-    { "name": "Надя (молодша)", "rates": [
-      { "kind": "individual", "band": "A", "amount": 450 },
-      { "kind": "individual", "band": "B", "amount": 520 },
-      { "kind": "club", "amount": 400 } ] },
-    { "name": "Агата", "role": "head_teacher", "rates": [
-      { "kind": "individual", "band": "A", "amount": 450, "note": "assumed, confirm" },
-      { "kind": "individual", "band": "B", "amount": 520 },
-      { "kind": "individual", "market": "intl", "amount": 600 },
-      { "kind": "group", "amount": 1200 },
-      { "kind": "trial", "amount": 400 },
-      { "kind": "diagnostic", "amount": 400 },
-      { "kind": "club", "amount": 400 } ],
-      "monthly_adjustments": [ { "description": "Zoom", "amount": 964 } ] },
-    { "name": "Олена (молодша)", "rates": [
-      { "kind": "individual", "band": "A", "amount": 400 },
-      { "kind": "individual", "band": "B", "amount": 420 },
-      { "kind": "trial", "amount": 400 } ] },
-    { "name": "Олена (старша)", "rates": [
-      { "kind": "individual", "band": "A", "amount": 450 },
-      { "kind": "individual", "band": "B", "amount": 520 },
-      { "kind": "pair", "amount": 600 } ] },
-    { "name": "Тома", "rates": [
-      { "kind": "individual", "band": "A", "amount": 450 },
-      { "kind": "individual", "band": "B", "amount": 520 },
-      { "kind": "trial", "amount": 400 } ] },
-    { "name": "Надія (старша)", "rates": [
-      { "kind": "individual", "band": "A", "amount": 550 },
-      { "kind": "individual", "band": "B", "amount": 600 } ] },
-    { "name": "Ганна", "rates": [
-      { "kind": "individual", "band": "A", "amount": 450 },
-      { "kind": "individual", "band": "B", "amount": 520 },
-      { "kind": "individual", "market": "intl", "amount": 600 },
-      { "kind": "group", "amount": 900 } ],
-      "monthly_adjustments": [ { "description": "Zoom", "amount": 913 } ] },
-    { "name": "Лена", "rates": [
-      { "kind": "individual", "band": "A", "amount": 400 },
-      { "kind": "individual", "band": "B", "amount": 420 },
-      { "kind": "trial", "amount": 400 } ] },
-    { "name": "Аліна", "rates": [
-      { "kind": "individual", "band": "A", "amount": 400 },
-      { "kind": "individual", "band": "B", "amount": 420 },
-      { "kind": "trial", "amount": 400 } ],
-      "monthly_adjustments": [ { "description": "GoodNotes", "amount": 587 } ] },
-    { "name": "Юля (нова)", "rates": [
-      { "kind": "individual", "band": "A", "amount": 400 },
-      { "kind": "individual", "band": "B", "amount": 420 },
-      { "kind": "trial", "amount": 400 } ] },
-    { "name": "Дарина (нова)", "rates": [
-      { "kind": "individual", "band": "A", "amount": 400 },
-      { "kind": "individual", "band": "B", "amount": 420 },
-      { "kind": "trial", "amount": 400 } ] }
+    {
+      "name": "Надя (молодша)",
+      "rates": [
+        {
+          "kind": "individual",
+          "band": "A",
+          "amount": 450
+        },
+        {
+          "kind": "individual",
+          "band": "B",
+          "amount": 520
+        },
+        {
+          "kind": "club",
+          "amount": 400
+        }
+      ]
+    },
+    {
+      "name": "Агата",
+      "role": "head_teacher",
+      "rates": [
+        {
+          "kind": "individual",
+          "band": "A",
+          "amount": 450
+        },
+        {
+          "kind": "individual",
+          "band": "B",
+          "amount": 520
+        },
+        {
+          "kind": "individual",
+          "market": "intl",
+          "amount": 600
+        },
+        {
+          "kind": "group",
+          "amount": 1200
+        },
+        {
+          "kind": "trial",
+          "amount": 400
+        },
+        {
+          "kind": "diagnostic",
+          "amount": 400
+        },
+        {
+          "kind": "club",
+          "amount": 400
+        }
+      ],
+      "monthly_adjustments": [
+        {
+          "description": "Zoom",
+          "amount": 964
+        }
+      ]
+    },
+    {
+      "name": "Олена (молодша)",
+      "rates": [
+        {
+          "kind": "individual",
+          "band": "A",
+          "amount": 400
+        },
+        {
+          "kind": "individual",
+          "band": "B",
+          "amount": 420
+        },
+        {
+          "kind": "individual",
+          "band": "B",
+          "package_lessons": 12,
+          "amount": 460
+        },
+        {
+          "kind": "trial",
+          "amount": 400
+        }
+      ]
+    },
+    {
+      "name": "Олена (старша)",
+      "rates": [
+        {
+          "kind": "individual",
+          "band": "A",
+          "amount": 450
+        },
+        {
+          "kind": "individual",
+          "band": "B",
+          "amount": 520
+        },
+        {
+          "kind": "pair",
+          "amount": 600
+        }
+      ]
+    },
+    {
+      "name": "Тома",
+      "rates": [
+        {
+          "kind": "individual",
+          "band": "A",
+          "amount": 450
+        },
+        {
+          "kind": "individual",
+          "band": "B",
+          "amount": 520
+        },
+        {
+          "kind": "trial",
+          "amount": 400
+        }
+      ]
+    },
+    {
+      "name": "Надія (старша)",
+      "rates": [
+        {
+          "kind": "individual",
+          "band": "A",
+          "amount": 550
+        },
+        {
+          "kind": "individual",
+          "band": "B",
+          "amount": 600
+        }
+      ]
+    },
+    {
+      "name": "Ганна",
+      "rates": [
+        {
+          "kind": "individual",
+          "band": "A",
+          "amount": 450
+        },
+        {
+          "kind": "individual",
+          "band": "B",
+          "amount": 520
+        },
+        {
+          "kind": "individual",
+          "market": "intl",
+          "amount": 600
+        },
+        {
+          "kind": "group",
+          "amount": 900
+        }
+      ],
+      "monthly_adjustments": [
+        {
+          "description": "Zoom",
+          "amount": 913
+        }
+      ]
+    },
+    {
+      "name": "Лена",
+      "rates": [
+        {
+          "kind": "individual",
+          "band": "A",
+          "amount": 400
+        },
+        {
+          "kind": "individual",
+          "band": "B",
+          "amount": 420
+        },
+        {
+          "kind": "individual",
+          "band": "B",
+          "package_lessons": 12,
+          "amount": 460
+        },
+        {
+          "kind": "trial",
+          "amount": 400
+        }
+      ]
+    },
+    {
+      "name": "Аліна",
+      "rates": [
+        {
+          "kind": "individual",
+          "band": "A",
+          "amount": 400
+        },
+        {
+          "kind": "individual",
+          "band": "B",
+          "amount": 420
+        },
+        {
+          "kind": "individual",
+          "band": "B",
+          "package_lessons": 12,
+          "amount": 460
+        },
+        {
+          "kind": "trial",
+          "amount": 400
+        }
+      ],
+      "monthly_adjustments": [
+        {
+          "description": "GoodNotes",
+          "amount": 587
+        }
+      ]
+    },
+    {
+      "name": "Юля (нова)",
+      "rates": [
+        {
+          "kind": "individual",
+          "band": "A",
+          "amount": 400
+        },
+        {
+          "kind": "individual",
+          "band": "B",
+          "amount": 420
+        },
+        {
+          "kind": "individual",
+          "band": "B",
+          "package_lessons": 12,
+          "amount": 460
+        },
+        {
+          "kind": "trial",
+          "amount": 400
+        }
+      ]
+    },
+    {
+      "name": "Дарина (нова)",
+      "rates": [
+        {
+          "kind": "individual",
+          "band": "A",
+          "amount": 400
+        },
+        {
+          "kind": "individual",
+          "band": "B",
+          "amount": 420
+        },
+        {
+          "kind": "individual",
+          "band": "B",
+          "package_lessons": 12,
+          "amount": 460
+        },
+        {
+          "kind": "trial",
+          "amount": 400
+        }
+      ]
+    }
   ]
 }

@@ -335,3 +335,24 @@ test('a teacher cannot book a lesson for a student just because they once substi
     `insert into public.lessons (teacher_id, student_id, starts_at) values ($1, $2, now())`,
     [ids.nadiia, ids.maksym]));
 });
+
+test('B1+ is 420 for an 8-lesson package and 460 for a 12-lesson one', async () => {
+  const [olena] = await rows(ids.manager,
+    `insert into public.students (full_name, level, teacher_id) values ('Олена-студентка', 'B1', $1) returning id`, [ids.nadiia]);
+  const [iryna] = await rows(ids.manager,
+    `insert into public.students (full_name, level, teacher_id) values ('Ірина', 'B2', $1) returning id`, [ids.nadiia]);
+  await rows(ids.manager, `insert into public.packages (student_id, lessons_total) values ($1, 8), ($2, 12)`,
+    [olena.id, iryna.id]);
+  await rows(ids.owner,
+    `insert into public.teacher_rates (teacher_id, kind, band, package_lessons, amount, valid_from)
+     values ($1, 'individual', 'B', 12, 460, '2026-01-01')`, [ids.nadiia]);
+  const pay = [];
+  for (const s of [olena.id, iryna.id]) {
+    const [l] = await rows(ids.nadiia,
+      `insert into public.lessons (teacher_id, student_id, starts_at, status)
+       values ($1, $2, now() - interval '3 hours', 'done') returning id`, [ids.nadiia, s]);
+    const [p] = await rows(ids.nadiia, 'select amount from public.lesson_pay where lesson_id = $1', [l.id]);
+    pay.push(Number(p.amount));
+  }
+  assert.deepEqual(pay, [420, 460]);
+});
