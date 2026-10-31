@@ -14,9 +14,13 @@ const SUPABASE_STUB = `
   create role authenticated nologin;
   create role service_role nologin bypassrls;
   create schema auth;
-  create table auth.users (id uuid primary key);
+  create table auth.users (id uuid primary key, email text);
   create function auth.uid() returns uuid language sql stable as
     $$ select nullif(current_setting('test.uid', true), '')::uuid $$;
+  create schema storage;
+  create table storage.buckets (id text primary key, name text, public boolean, file_size_limit bigint);
+  create table storage.objects (bucket_id text, name text, owner uuid);
+  alter table storage.objects enable row level security;
   grant usage on schema auth to authenticated, anon;
   grant execute on function auth.uid() to authenticated, anon;
 `;
@@ -355,4 +359,45 @@ test('B1+ is 420 for an 8-lesson package and 460 for a 12-lesson one', async () 
     pay.push(Number(p.amount));
   }
   assert.deepEqual(pay, [420, 460]);
+});
+
+// --- Invites -------------------------------------------------------------
+
+test('an invited teacher gets a profile and rates on first sign-in', async () => {
+  await rows(ids.owner,
+    `insert into public.invites (email, full_name, role, pending_rates) values
+     ('lena@lanhub.test', 'Лена', 'teacher',
+      '[{"kind":"individual","band":"A","amount":400},
+        {"kind":"individual","band":"B","amount":420},
+        {"kind":"individual","band":"B","package_lessons":12,"amount":460}]')`);
+  const { rows: [u] } = await db.query(
+    `insert into auth.users (id, email) values (gen_random_uuid(), 'Lena@LanHub.test') returning id`);
+  const [p] = await rows(u.id, 'select full_name, role from public.profiles where id = $1', [u.id]);
+  assert.deepEqual([p.full_name, p.role], ['Лена', 'teacher']);
+  const rates = await rows(u.id, 'select amount from public.teacher_rates order by amount');
+  assert.deepEqual(rates.map((r) => Number(r.amount)), [400, 420, 460]);
+});
+
+test('someone without an invite can sign in but sees nothing', async () => {
+  const { rows: [u] } = await db.query(
+    `insert into auth.users (id, email) values (gen_random_uuid(), 'stranger@mail.test') returning id`);
+  assert.equal((await rows(u.id, 'select * from public.profiles')).length, 0);
+  assert.equal((await rows(u.id, 'select * from public.students')).length, 0);
+  assert.equal((await rows(u.id, 'select * from public.lessons')).length, 0);
+  assert.equal((await rows(u.id, 'select * from public.files')).length, 0);
+  ids.stranger = u.id;
+});
+
+test('inviting someone who already signed in gives them access at once', async () => {
+  await rows(ids.owner,
+    `insert into public.invites (email, full_name, role) values ('stranger@mail.test', 'Вікторія', 'manager')`);
+  const [p] = await rows(ids.stranger, 'select role from public.profiles where id = $1', [ids.stranger]);
+  assert.equal(p.role, 'manager');
+});
+
+test('a manager cannot invite staff, a teacher cannot invite anyone', async () => {
+  assert.ok(await fails(ids.manager,
+    `insert into public.invites (email, full_name, role) values ('x@lanhub.test', 'X', 'teacher')`));
+  assert.ok(await fails(ids.nadiia,
+    `insert into public.invites (email, full_name, role) values ('y@lanhub.test', 'Y', 'student')`));
 });
