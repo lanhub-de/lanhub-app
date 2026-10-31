@@ -1,16 +1,27 @@
 {
   "name": "lanhub-app",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
   "scripts": {
-    "test": "node --test tests/db.test.mjs"
+    "test": "node --test tests/db.test.mjs",
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start -p ${PORT:-3000}",
+    "postinstall": "node -e \"require('fs').copyFileSync('node_modules/pdfjs-dist/build/pdf.worker.min.mjs','public/pdf.worker.min.mjs')\""
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
   "dependencies": {
-    "@electric-sql/pglite": "^0.5.13"
+    "@supabase/ssr": "^0.12.7",
+    "@supabase/supabase-js": "^2.118.0",
+    "next": "^15.5.28",
+    "pdfjs-dist": "^6.4.299",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
   },
-  "private": "true"
+  "private": true,
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.13",
+    "@types/node": "^26.6.6",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "typescript": "^5.9.3"
+  }
 }

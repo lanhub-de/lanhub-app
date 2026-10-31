@@ -401,3 +401,12 @@ test('a manager cannot invite staff, a teacher cannot invite anyone', async () =
   assert.ok(await fails(ids.nadiia,
     `insert into public.invites (email, full_name, role) values ('y@lanhub.test', 'Y', 'student')`));
 });
+
+test('only the owner switches people off, and not herself', async () => {
+  assert.ok(await fails(ids.manager, `select public.set_profile_active($1, false)`, [ids.toma]));
+  assert.match(await fails(ids.owner, `select public.set_profile_active($1, false)`, [ids.owner]), /yourself/);
+  await rows(ids.owner, `select public.set_profile_active($1, false)`, [ids.toma]);
+  // a switched-off teacher sees nothing
+  assert.equal((await rows(ids.toma, 'select * from public.students')).length, 0);
+  await rows(ids.owner, `select public.set_profile_active($1, true)`, [ids.toma]);
+});

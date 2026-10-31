@@ -1,0 +1,87 @@
+:root {
+  --red: #a30000;
+  --red-deep: #800000;
+  --ground: #fbf8f5;
+  --card: #ffffff;
+  --sand: #f3efea;
+  --rose: #f6e6e3;
+  --line: #e8e1d9;
+  --ink: #1f1a17;
+  --muted: #6b625b;
+  --ok-bg: #e6f0e8;
+  --ok: #23562d;
+  --radius: 14px;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  font-family: 'Golos Text', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  background: var(--ground);
+  color: var(--ink);
+  font-size: 15px;
+  line-height: 1.45;
+}
+a { color: var(--red); }
+a:hover { color: var(--red-deep); }
+h1 { font-size: 28px; letter-spacing: -0.02em; margin: 0 0 16px; }
+h2 { font-size: 18px; margin: 0 0 12px; }
+small, .muted { color: var(--muted); }
+
+.topbar {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 14px 24px; background: var(--card); border-bottom: 1px solid var(--line);
+}
+.brand { font-size: 22px; font-weight: 700; color: var(--red); letter-spacing: -0.02em; text-decoration: none; }
+.nav { display: flex; flex-wrap: wrap; gap: 4px; }
+.nav a {
+  padding: 8px 12px; border-radius: 10px; color: var(--ink); text-decoration: none; font-weight: 500;
+}
+.nav a.active { background: var(--rose); color: var(--red-deep); font-weight: 600; }
+.who { display: flex; align-items: center; gap: 12px; font-size: 14px; }
+
+.page { max-width: 1200px; margin: 0 auto; padding: 28px 24px 64px; }
+.grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+.row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.spread { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; }
+.stack { display: flex; flex-direction: column; gap: 12px; }
+
+.card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; }
+.card.alert { background: var(--rose); border-color: transparent; }
+.big { font-size: 30px; font-weight: 700; color: var(--red); }
+
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; font-weight: 500; color: var(--muted); font-size: 13px; padding: 8px; border-bottom: 1px solid var(--line); }
+td { padding: 10px 8px; border-bottom: 1px solid var(--sand); vertical-align: top; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.table-wrap { overflow-x: auto; }
+
+label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
+input, select, textarea {
+  font: inherit; color: var(--ink); background: var(--ground);
+  border: 1px solid var(--line); border-radius: 10px; padding: 9px 11px; min-height: 42px;
+}
+textarea { min-height: 70px; }
+.form { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); align-items: end; }
+
+button, .btn {
+  font: inherit; font-weight: 600; border-radius: 10px; padding: 9px 16px; min-height: 42px;
+  border: 1px solid var(--line); background: var(--card); color: var(--ink); cursor: pointer;
+  text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+}
+button.primary, .btn.primary { background: var(--red); border-color: var(--red); color: #fff; }
+button.primary:hover { background: var(--red-deep); }
+button.small, .btn.small { min-height: 34px; padding: 5px 10px; font-size: 13px; }
+
+.pill { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; background: var(--sand); color: #5a524c; }
+.pill.ok { background: var(--ok-bg); color: var(--ok); }
+.pill.warn { background: var(--rose); color: var(--red-deep); }
+
+.flash { padding: 10px 14px; border-radius: 10px; background: var(--rose); color: var(--red-deep); margin-bottom: 16px; }
+.flash.ok { background: var(--ok-bg); color: var(--ok); }
+
+.center { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
+.login { width: 100%; max-width: 380px; }
+
+details > summary { cursor: pointer; font-weight: 600; color: var(--red); list-style: none; }
+details > summary::-webkit-details-marker { display: none; }
