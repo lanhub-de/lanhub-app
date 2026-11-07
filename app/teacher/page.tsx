@@ -1,5 +1,7 @@
 import Shell, { Flash } from '@/components/Shell';
 import LessonRow from '@/components/LessonRow';
+import GroupLessonCard, { type Member } from '@/components/GroupLessonCard';
+import Link from 'next/link';
 import { requireProfile, TEACHING } from '@/lib/session';
 import { currentMonthStart, fmtDate, fmtMoney, fmtMonth } from '@/lib/i18n';
 import { addLesson } from './actions';
@@ -28,6 +30,28 @@ export default async function TeacherPage({ searchParams }: { searchParams: Prom
       .eq('teacher_id', profile.id).eq('month', month),
   ]);
 
+  // Group lessons: who is in each group and who missed which lesson.
+  const all = [...(unmarked.data ?? []), ...(upcoming.data ?? []), ...(recent.data ?? [])];
+  const groupIds = [...new Set(all.map((l) => l.group_id).filter(Boolean))] as string[];
+  const groupLessonIds = all.filter((l) => l.group_id).map((l) => l.id);
+  const [memberRows, absenceRows, myGroups] = await Promise.all([
+    groupIds.length
+      ? supabase.from('group_members').select('group_id, student_id, students(full_name)').in('group_id', groupIds)
+        .returns<{ group_id: string; student_id: string; students: { full_name: string } | null }[]>()
+      : Promise.resolve({ data: [] as { group_id: string; student_id: string; students: { full_name: string } | null }[] }),
+    groupLessonIds.length
+      ? supabase.from('lesson_absences').select('lesson_id, student_id').in('lesson_id', groupLessonIds)
+      : Promise.resolve({ data: [] as { lesson_id: string; student_id: string }[] }),
+    supabase.from('group_overview').select('id, name, members, lessons_total, lessons_done').eq('teacher_id', profile.id).eq('active', true).order('name'),
+  ]);
+  const membersOf = (gid: string): Member[] => (memberRows.data ?? [])
+    .filter((m) => m.group_id === gid).map((m) => ({ student_id: m.student_id, name: m.students?.full_name ?? '' }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  const absentIn = (lid: string) => new Set((absenceRows.data ?? []).filter((a) => a.lesson_id === lid).map((a) => a.student_id));
+  const row = (l: LessonDb) => l.group_id && l.program_lessons
+    ? <GroupLessonCard key={l.id} lesson={l} members={membersOf(l.group_id)} absent={absentIn(l.id)} t={t} locale={profile.locale} returnTo="/teacher" />
+    : <LessonRow key={l.id} lesson={toView(l)} t={t} locale={profile.locale} returnTo="/teacher" canMark />;
+
   const myStudents = (students.data ?? []).filter((s) => s.teacher_id === profile.id);
   const pkgByStudent = new Map((packages.data ?? []).map((p) => [p.student_id, p]));
   const payRow = pay.data?.[0];
@@ -41,9 +65,7 @@ export default async function TeacherPage({ searchParams }: { searchParams: Prom
         <section className="stack" style={{ marginBottom: 28 }}>
           <h2>{t('needsMarking')} · {unmarked.data!.length}</h2>
           <p className="muted">{t('needsMarkingHint')}</p>
-          {unmarked.data!.map((l) => (
-            <LessonRow key={l.id} lesson={toView(l)} t={t} locale={profile.locale} returnTo="/teacher" canMark />
-          ))}
+          {unmarked.data!.map(row)}
         </section>
       )}
 
@@ -51,9 +73,7 @@ export default async function TeacherPage({ searchParams }: { searchParams: Prom
         <section className="stack" style={{ gridColumn: 'span 2' }}>
           <h2>{t('upcoming')}</h2>
           {(upcoming.data ?? []).length === 0 && <p className="muted">{t('nothingHere')}</p>}
-          {(upcoming.data ?? []).map((l) => (
-            <LessonRow key={l.id} lesson={toView(l)} t={t} locale={profile.locale} returnTo="/teacher" canMark />
-          ))}
+          {(upcoming.data ?? []).map(row)}
 
           <details className="card">
             <summary>+ {t('addLesson')}</summary>
@@ -86,9 +106,7 @@ export default async function TeacherPage({ searchParams }: { searchParams: Prom
           {(recent.data ?? []).length > 0 && (
             <>
               <h2 style={{ marginTop: 16 }}>{t('journal')}</h2>
-              {recent.data!.map((l) => (
-                <LessonRow key={l.id} lesson={toView(l)} t={t} locale={profile.locale} returnTo="/teacher" canMark />
-              ))}
+              {recent.data!.map(row)}
             </>
           )}
         </section>
@@ -99,6 +117,17 @@ export default async function TeacherPage({ searchParams }: { searchParams: Prom
             <div className="big">{fmtMoney(payRow?.total ?? 0)}</div>
             <div className="muted">{payRow?.lessons_count ?? 0} {t('lessonsCount')}</div>
           </div>
+          {(myGroups.data ?? []).length > 0 && (
+            <div className="card">
+              <h2>{t('myGroups')}</h2>
+              {myGroups.data!.map((g) => (
+                <Link key={g.id} href={`/groups/${g.id}`} className="spread" style={{ padding: '8px 0', borderBottom: '1px solid var(--sand)', color: 'var(--ink)', textDecoration: 'none' }}>
+                  <span style={{ fontWeight: 600 }}>{g.name}</span>
+                  <span className="muted" style={{ fontSize: 13 }}>{g.lessons_done}/{g.lessons_total} · {g.members}</span>
+                </Link>
+              ))}
+            </div>
+          )}
           <div className="card">
             <h2>{t('myStudents')}</h2>
             {myStudents.length === 0 && <p className="muted">{t('nothingHere')}</p>}

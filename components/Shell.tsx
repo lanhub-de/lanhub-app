@@ -14,6 +14,7 @@ function navFor(profile: Profile, t: T): NavItem[] {
         { href: '/school', label: t('navOverview') },
         ...teaching,
         { href: '/school/students', label: t('navStudents') },
+        { href: '/school/groups', label: t('navGroups') },
         { href: '/school/lessons', label: t('navLessons') },
         { href: '/school/payouts', label: t('navPayouts') },
         { href: '/school/team', label: t('navTeam') },
@@ -24,6 +25,7 @@ function navFor(profile: Profile, t: T): NavItem[] {
         { href: '/school', label: t('navOverview') },
         ...teaching,
         { href: '/school/students', label: t('navStudents') },
+        { href: '/school/groups', label: t('navGroups') },
         { href: '/school/lessons', label: t('navLessons') },
         ...library,
       ];
@@ -31,6 +33,7 @@ function navFor(profile: Profile, t: T): NavItem[] {
       return [
         { href: '/school', label: t('navOverview') },
         { href: '/school/students', label: t('navStudents') },
+        { href: '/school/groups', label: t('navGroups') },
         { href: '/school/lessons', label: t('navLessons') },
       ];
     case 'teacher':
