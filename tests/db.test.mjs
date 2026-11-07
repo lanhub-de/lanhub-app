@@ -410,3 +410,118 @@ test('only the owner switches people off, and not herself', async () => {
   assert.equal((await rows(ids.toma, 'select * from public.students')).length, 0);
   await rows(ids.owner, `select public.set_profile_active($1, true)`, [ids.toma]);
 });
+
+// ---------------------------------------------------------------------------
+// Groups
+// ---------------------------------------------------------------------------
+test('a new group gets its 8 lessons on its weekdays at Vienna time', async () => {
+  const [p3] = await rows(ids.agata,
+    `insert into public.programs (title, level) values ('German Activation · Flow 3', 'A2–B1') returning id`);
+  ids.flow3 = p3.id;
+  await rows(ids.agata,
+    `insert into public.program_lessons (program_id, n, title) select $1, n, 'Lesson ' || n from generate_series(1, 8) n`,
+    [ids.flow3]);
+  const [p4] = await rows(ids.owner,
+    `insert into public.programs (title, level) values ('German Activation · Flow 4', 'A2–B1') returning id`);
+  ids.flow4 = p4.id;
+  await rows(ids.owner,
+    `insert into public.program_lessons (program_id, n, title) select $1, n, 'L' || n from generate_series(1, 8) n`,
+    [ids.flow4]);
+  await rows(ids.owner, 'update public.programs set next_program_id = $2 where id = $1', [ids.flow3, ids.flow4]);
+  await db.query(
+    `insert into public.teacher_rates (teacher_id, kind, amount, valid_from) values ($1, 'group', 900, '2026-01-01')`,
+    [ids.toma]);
+
+  const [{ create_group: gid }] = await rows(ids.manager,
+    `select public.create_group($1, $2, array[2, 4], '20:10', '2026-09-07', 10, 'https://zoom.example/g')`,
+    [ids.flow3, ids.toma]);
+  ids.g3 = gid;
+  const ls = await rows(ids.manager,
+    `select to_char(starts_at at time zone 'Europe/Vienna', 'Dy DD.MM HH24:MI') as t, duration_min, kind, zoom_url
+       from public.lessons where group_id = $1 order by starts_at`, [gid]);
+  assert.equal(ls.length, 8);
+  assert.deepEqual(ls.slice(0, 3).map((l) => l.t), ['Tue 08.09 20:10', 'Thu 10.09 20:10', 'Tue 15.09 20:10']);
+  assert.equal(ls[7].t, 'Thu 01.10 20:10');
+  assert.equal(ls[0].duration_min, 90);
+  assert.equal(ls[0].kind, 'group');
+  assert.equal(ls[0].zoom_url, 'https://zoom.example/g');
+  const [g] = await rows(ids.manager, 'select name, lessons_total, capacity from public.group_overview where id = $1', [gid]);
+  assert.equal(g.name, 'German Activation · Flow 3 · Tue/Thu 20:10');
+  assert.equal(g.lessons_total, 8);
+});
+
+test('only the owner and head teacher write programs; teachers cannot create groups', async () => {
+  assert.ok(await fails(ids.manager, `insert into public.programs (title) values ('X')`));
+  assert.ok(await fails(ids.toma,
+    `insert into public.program_lessons (program_id, n, title) values ($1, 9, 'X')`, [ids.flow3]));
+  assert.ok(await fails(ids.toma,
+    `select public.create_group($1, $2, array[1], '10:00', '2026-11-16')`, [ids.flow3, ids.toma]));
+  const [{ c }] = await rows(ids.toma,
+    'select count(*)::int as c from public.program_lessons where program_id = $1', [ids.flow3]);
+  assert.equal(c, 8);
+});
+
+test('group lesson: the teacher marks who missed it and gets the group rate', async () => {
+  const [s1] = await rows(ids.manager,
+    `insert into public.students (full_name, level, market) values ('Sarah', 'A2', 'intl') returning id`);
+  const [s2] = await rows(ids.manager,
+    `insert into public.students (full_name, level, market) values ('Marco', 'B1', 'intl') returning id`);
+  ids.sarah = s1.id;
+  ids.marco = s2.id;
+  await rows(ids.manager,
+    'insert into public.group_members (group_id, student_id) values ($1, $2), ($1, $3)', [ids.g3, ids.sarah, ids.marco]);
+  const [first] = await rows(ids.toma,
+    'select id from public.lessons where group_id = $1 order by starts_at limit 1', [ids.g3]);
+  ids.g3first = first.id;
+  const names = (await rows(ids.toma,
+    'select full_name from public.students where id in ($1, $2) order by full_name', [ids.sarah, ids.marco]))
+    .map((r) => r.full_name);
+  assert.deepEqual(names, ['Marco', 'Sarah']);
+
+  await rows(ids.toma, 'insert into public.lesson_absences (lesson_id, student_id) values ($1, $2)', [first.id, ids.marco]);
+  assert.ok(await fails(ids.nadiia,
+    'insert into public.lesson_absences (lesson_id, student_id) values ($1, $2)', [first.id, ids.sarah]));
+
+  await rows(ids.toma,
+    `update public.lessons set status = 'done', recording_url = 'https://rec.example/1', program_lesson_id = null
+      where id = $1`, [first.id]);
+  const [l] = await rows(ids.toma,
+    'select status, recording_url, program_lesson_id is not null as linked from public.lessons where id = $1', [first.id]);
+  assert.equal(l.status, 'done');
+  assert.equal(l.recording_url, 'https://rec.example/1');
+  assert.equal(l.linked, true);
+  const [pay] = await rows(ids.toma, 'select amount from public.lesson_pay where lesson_id = $1', [first.id]);
+  assert.equal(Number(pay.amount), 900);
+  const [o] = await rows(ids.agata, 'select lessons_done, members from public.group_overview where id = $1', [ids.g3]);
+  assert.equal(o.lessons_done, 1);
+  assert.equal(o.members, 2);
+});
+
+test('a substitute for a group lesson sees the group and its people', async () => {
+  const [second] = await rows(ids.manager,
+    `update public.lessons set teacher_id = $2
+      where id = (select id from public.lessons where group_id = $1 order by starts_at offset 1 limit 1)
+      returning id`, [ids.g3, ids.nadiia]);
+  const groups = await rows(ids.nadiia, 'select name from public.groups where id = $1', [ids.g3]);
+  assert.equal(groups.length, 1);
+  const members = await rows(ids.nadiia, 'select student_id from public.group_members where group_id = $1', [ids.g3]);
+  assert.equal(members.length, 2);
+  await rows(ids.nadiia, 'insert into public.lesson_absences (lesson_id, student_id) values ($1, $2)', [second.id, ids.sarah]);
+});
+
+test('a finished group continues into the next flow with the same people and timetable', async () => {
+  const [{ continue_group: next }] = await rows(ids.manager, 'select public.continue_group($1)', [ids.g3]);
+  const [g] = await rows(ids.manager,
+    `select g.program_id, g.continued_from, g.teacher_id, g.days, o.members, o.lessons_total
+       from public.groups g join public.group_overview o on o.id = g.id where g.id = $1`, [next]);
+  assert.equal(g.program_id, ids.flow4);
+  assert.equal(g.continued_from, ids.g3);
+  assert.equal(g.teacher_id, ids.toma);
+  assert.deepEqual(g.days, [2, 4]);
+  assert.equal(g.members, 2);
+  assert.equal(g.lessons_total, 8);
+  const [firstNext] = await rows(ids.manager,
+    `select to_char(starts_at at time zone 'Europe/Vienna', 'Dy DD.MM HH24:MI') as t
+       from public.lessons where group_id = $1 order by starts_at limit 1`, [next]);
+  assert.equal(firstNext.t, 'Tue 06.10 20:10');
+});
