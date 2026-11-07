@@ -5,6 +5,7 @@ export const metadata: Metadata = {
   title: 'LanHub',
   description: 'LanHub school platform',
   robots: { index: false, follow: false },
+  appleWebApp: { capable: true, title: 'LanHub', statusBarStyle: 'default' },
 };
 
 export const viewport: Viewport = { width: 'device-width', initialScale: 1, themeColor: '#a30000' };
