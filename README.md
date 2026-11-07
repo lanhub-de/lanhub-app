@@ -29,7 +29,7 @@ Who sees what is enforced by row level security in
 ## People
 
 The owner invites people by email on the Team page, picking a rate set.
-Their profile and rates are created the first time they sign in with a code.
+Their profile and rates are created the first time they sign in with the link from the email.
 
 ## Developing
 
