@@ -38,6 +38,7 @@ export default async function PayoutsPage({
           {months.map((m) => <option key={m} value={m}>{fmtMonth(m, profile.locale)}</option>)}
         </select>
         <button type="submit">OK</button>
+        <a href={`/school/payouts/export?month=${month}`} className="btn">{t('exportCsv')}</a>
       </form>
 
       <div className="card" style={{ marginBottom: 16 }}>

@@ -40,27 +40,43 @@ function navFor(profile: Profile, t: T): NavItem[] {
   }
 }
 
+// School staff get a side menu (it becomes a scrolling row on a phone);
+// teachers, with two sections, get them in the top bar.
 export default function Shell({
   profile, t, active, children,
 }: { profile: Profile; t: T; active: string; children: React.ReactNode }) {
+  const items = navFor(profile, t);
+  const side = items.length > 2;
+  const initial = (profile.full_name.trim().charAt(0) || 'L').toUpperCase();
+  const links = items.map((item) => (
+    <Link key={item.href} href={item.href} className={active === item.href ? 'active' : ''}>
+      {item.label}
+    </Link>
+  ));
   return (
     <>
       <header className="topbar">
-        <Link href="/" className="brand">LanHub</Link>
-        <nav className="nav" aria-label="LanHub">
-          {navFor(profile, t).map((item) => (
-            <Link key={item.href} href={item.href} className={active === item.href ? 'active' : ''}>
-              {item.label}
-            </Link>
-          ))}
-        </nav>
+        <Link href="/" className="brand-wrap">
+          <span className="brand">LanHub</span>
+          <span className="brand-sub">{profile.role === 'teacher' ? t('teacherCabinet') : t('platformSchool')}</span>
+        </Link>
+        {!side && <nav className="pills" aria-label="LanHub">{links}</nav>}
         <div className="who">
-          <Link href="/settings">{profile.full_name}</Link>
-          <span className="muted">{t(`role_${profile.role}`)}</span>
+          <Link href="/settings" className="who-link">
+            <span className="avatar" aria-hidden="true">{initial}</span>
+            <span>{profile.full_name} · <span className="muted">{t(`role_${profile.role}`)}</span></span>
+          </Link>
           <form action={signOut}><button className="small" type="submit">{t('signOut')}</button></form>
         </div>
       </header>
-      <main className="page">{children}</main>
+      {side ? (
+        <div className="layout">
+          <nav className="side" aria-label="LanHub">{links}</nav>
+          <main className="content">{children}</main>
+        </div>
+      ) : (
+        <main className="page">{children}</main>
+      )}
     </>
   );
 }
