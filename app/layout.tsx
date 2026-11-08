@@ -1,5 +1,6 @@
 import './globals.css';
 import type { Metadata, Viewport } from 'next';
+import UpdateWatcher from '@/components/UpdateWatcher';
 
 export const metadata: Metadata = {
   title: 'LanHub',
@@ -21,7 +22,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           rel="stylesheet"
         />
       </head>
-      <body>{children}</body>
+      <body>{children}<UpdateWatcher /></body>
     </html>
   );
 }

@@ -139,3 +139,6 @@ details > summary::-webkit-details-marker { display: none; }
 .card.group-lesson { border: 2px solid var(--red); display: flex; flex-direction: column; gap: 14px; }
 .links { display: flex; flex-wrap: wrap; gap: 8px; }
 .links a { padding: 8px 12px; border-radius: 10px; background: var(--sand); color: var(--ink); text-decoration: none; font-size: 14px; }
+
+.update-bar { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 50; display: flex; align-items: center; gap: 12px;
+  padding: 10px 12px 10px 16px; border-radius: 14px; background: var(--ink); color: #fff; box-shadow: 0 6px 24px rgba(0,0,0,.18); font-size: 14px; max-width: calc(100% - 32px); }
