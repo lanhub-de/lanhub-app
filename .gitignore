@@ -4,3 +4,4 @@ node_modules/
 .next/
 public/pdf.worker.min.mjs
 supabase/seed/
+*.tsbuildinfo
