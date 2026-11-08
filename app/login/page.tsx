@@ -14,7 +14,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
         </div>
         <h1>{t('signIn')}</h1>
         {e === 'link' && <div className="flash" role="alert">{t('linkFailed')}</div>}
-        <LoginForm labels={{ email: t('emailLabel'), send: t('sendCode'), sent: t('codeSent'), other: t('otherEmail') }} />
+        <LoginForm labels={{ email: t('emailLabel'), send: t('sendCode'), sent: t('codeSent'), code: t('codeLabel'), confirm: t('confirm'), other: t('otherEmail') }} />
       </div>
     </div>
   );
