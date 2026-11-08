@@ -525,3 +525,66 @@ test('a finished group continues into the next flow with the same people and tim
        from public.lessons where group_id = $1 order by starts_at limit 1`, [next]);
   assert.equal(firstNext.t, 'Tue 06.10 20:10');
 });
+
+// ---------------------------------------------------------------------------
+// Students and their course page
+// ---------------------------------------------------------------------------
+test('a group student signs in with the email on their card and sees only their course', async () => {
+  await rows(ids.manager, `update public.students set email = 'sarah@example.com' where id = $1`, [ids.sarah]);
+  const { rows: [u] } = await db.query('select gen_random_uuid() as id');
+  ids.sarahLogin = u.id;
+  await db.query(`insert into auth.users (id, email) values ($1, 'Sarah@example.com')`, [u.id]);
+  const [p] = await rows(ids.sarahLogin, 'select role, full_name from public.profiles where id = $1', [u.id]);
+  assert.equal(p.role, 'student');
+  assert.equal(p.full_name, 'Sarah');
+
+  const mine = await rows(ids.sarahLogin, 'select * from public.my_course_groups()');
+  assert.deepEqual(mine.map((g) => g.id).sort(), [ids.g3, (await db.query(
+    'select id from public.groups where continued_from = $1', [ids.g3])).rows[0].id].sort());
+
+  const [head] = await rows(ids.sarahLogin, 'select program_title, teacher_name, zoom_url from public.course_group($1)', [ids.g3]);
+  assert.equal(head.program_title, 'German Activation · Flow 3');
+  assert.equal(head.teacher_name, 'Тома');
+  assert.equal((await rows(ids.sarahLogin, 'select * from public.course_schedule($1)', [ids.g3])).length, 8);
+  const lessons = await rows(ids.sarahLogin, 'select * from public.course_lessons($1)', [ids.g3]);
+  assert.equal(lessons.length, 8);
+  assert.ok(!('teacher_note' in lessons[0]));
+
+  // nothing from the raw tables
+  assert.equal((await rows(ids.sarahLogin, 'select * from public.program_lessons')).length, 0);
+  assert.equal((await rows(ids.sarahLogin, 'select * from public.lessons where group_id = $1', [ids.g3])).length, 0);
+  assert.equal((await rows(ids.sarahLogin, 'select * from public.lesson_pay')).length, 0);
+  assert.equal((await rows(ids.sarahLogin, 'select * from public.students where id <> $1', [ids.sarah])).length, 0);
+});
+
+test('a student cannot open another group\'s course page', async () => {
+  const [{ create_group: other }] = await rows(ids.manager,
+    `select public.create_group($1, $2, array[1, 3], '08:00', '2026-09-07')`, [ids.flow3, ids.toma]);
+  assert.equal((await rows(ids.sarahLogin, 'select * from public.course_group($1)', [other])).length, 0);
+  assert.equal((await rows(ids.sarahLogin, 'select * from public.course_lessons($1)', [other])).length, 0);
+});
+
+test('students open course files meant for them, never teacher-only ones', async () => {
+  const [guide] = await rows(ids.agata,
+    `insert into public.files (title, storage_path) values ('Guide 1', 'library/guide1.pdf') returning id`);
+  const [tguide] = await rows(ids.agata,
+    `insert into public.files (title, storage_path) values ('Teacher guide', 'library/tguide.pdf') returning id`);
+  await rows(ids.agata, 'insert into public.program_files (program_id, file_id) values ($1, $2)', [ids.flow3, guide.id]);
+  await rows(ids.agata,
+    `insert into public.program_lesson_files (program_lesson_id, file_id, for_students)
+     select id, $2, false from public.program_lessons where program_id = $1 and n = 1`, [ids.flow3, tguide.id]);
+  const files = await rows(ids.sarahLogin, 'select title from public.course_files($1)', [ids.g3]);
+  assert.deepEqual(files.map((f) => f.title), ['Guide 1']);
+  const visible = (await rows(ids.sarahLogin, 'select title from public.files order by title')).map((f) => f.title);
+  assert.deepEqual(visible, ['Guide 1']);
+});
+
+test('an email added to a card later links a student who already signed in', async () => {
+  const { rows: [u] } = await db.query('select gen_random_uuid() as id');
+  await db.query(`insert into auth.users (id, email) values ($1, 'marco@example.com')`, [u.id]);
+  assert.equal((await db.query('select * from public.profiles where id = $1', [u.id])).rows.length, 0);
+  await rows(ids.manager, `update public.students set email = 'marco@example.com' where id = $1`, [ids.marco]);
+  const [p] = (await db.query('select role from public.profiles where id = $1', [u.id])).rows;
+  assert.equal(p.role, 'student');
+  assert.equal((await rows(u.id, 'select * from public.course_group($1)', [ids.g3])).length, 1);
+});
