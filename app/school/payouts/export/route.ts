@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
   const month = /^\d{4}-\d{2}-01$/.test(m) ? m : currentMonthStart();
   const [{ data: lines }, { data: extra }] = await Promise.all([
     supabase.from('lesson_pay')
-      .select('amount, currency, profiles!lesson_pay_teacher_id_fkey(full_name), lessons(starts_at, kind, status, students(full_name), groups(name))')
+      .select('amount, currency, profiles!lesson_pay_teacher_id_fkey(full_name), lessons(starts_at, kind, status, students!lessons_student_id_fkey(full_name), groups!lessons_group_id_fkey(name))')
       .eq('month', month).returns<Line[]>(),
     supabase.from('payout_adjustments').select('description, amount, currency, profiles!payout_adjustments_teacher_id_fkey(full_name)').eq('month', month)
       .returns<{ description: string; amount: number | string; currency: string; profiles: { full_name: string } | null }[]>(),

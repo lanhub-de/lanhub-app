@@ -5,6 +5,8 @@ import { requireProfile } from '@/lib/session';
 import { fmtInTz } from '@/lib/i18n';
 import { INVITE, pendingTeachers } from '@/lib/invites';
 import { addMember, archiveGroup, continueGroup, removeMember, updateGroup } from '../actions';
+import GroupLessonCard from '@/components/GroupLessonCard';
+import { LESSON_SELECT, type LessonDb } from '@/lib/lessons';
 
 type LessonRowDb = {
   id: string; starts_at: string; status: string; recording_url: string | null; teacher_id: string;
@@ -12,7 +14,7 @@ type LessonRowDb = {
 };
 
 export default async function GroupPage({ params, searchParams }: {
-  params: Promise<{ id: string }>; searchParams: Promise<{ e?: string }>;
+  params: Promise<{ id: string }>; searchParams: Promise<{ e?: string; l?: string }>;
 }) {
   const { supabase, profile, t } = await requireProfile(['owner', 'head_teacher', 'manager', 'teacher']);
   const { id } = await params;
@@ -44,6 +46,10 @@ export default async function GroupPage({ params, searchParams }: {
   const { data: absences } = lessonIds.length
     ? await supabase.from('lesson_absences').select('lesson_id, student_id').in('lesson_id', lessonIds)
     : { data: [] as { lesson_id: string; student_id: string }[] };
+  // the lesson opened for marking (?l=<lesson id>)
+  const { data: openLesson } = sp.l
+    ? await supabase.from('lessons').select(LESSON_SELECT).eq('id', sp.l).eq('group_id', id).maybeSingle<LessonDb>()
+    : { data: null };
   const { data: nextProgram } = program.data?.next_program_id
     ? await supabase.from('programs').select('title').eq('id', program.data.next_program_id).maybeSingle()
     : { data: null };
@@ -87,10 +93,10 @@ export default async function GroupPage({ params, searchParams }: {
                   const counted = ['done', 'no_show', 'late_cancel'].includes(l.status);
                   const missed = absentCount(l.id);
                   return (
-                    <tr key={l.id}>
+                    <tr key={l.id} className={openLesson?.id === l.id ? 'row-open' : ''}>
                       <td style={{ width: 36, fontWeight: 700, color: 'var(--red)' }}>{l.program_lessons?.n ?? ''}</td>
                       <td>
-                        <div style={{ fontWeight: 600 }}>{l.program_lessons?.title ?? ''}</div>
+                        <Link href={`/groups/${g.id}?l=${l.id}#lesson`} style={{ fontWeight: 600, color: 'var(--ink)' }}>{l.program_lessons?.title ?? ''}</Link>
                         <div className="muted" style={{ fontSize: 13 }}>
                           {l.program_lessons?.topic ?? ''}
                           {l.teacher_id !== g.teacher_id ? ` · ${nameOf.get(l.teacher_id) ?? ''}` : ''}
@@ -108,6 +114,23 @@ export default async function GroupPage({ params, searchParams }: {
               </tbody>
             </table>
           </div>
+          <p className="muted" style={{ fontSize: 13, margin: '10px 0 0' }}>
+            {t('lessonsWhoEdits')}{' '}
+            {(profile.role === 'owner' || profile.role === 'head_teacher') && g.program_id && (
+              <Link href={`/school/programs/${g.program_id}`}>{t('openProgram')}</Link>
+            )}
+          </p>
+          {openLesson && openLesson.program_lessons && (
+            <div id="lesson" style={{ marginTop: 14 }}>
+              <GroupLessonCard
+                lesson={openLesson}
+                members={(members.data ?? []).map((m) => ({ student_id: m.student_id, name: m.students?.full_name ?? '' }))
+                  .sort((a, b) => a.name.localeCompare(b.name))}
+                absent={new Set((absences ?? []).filter((a) => a.lesson_id === openLesson.id).map((a) => a.student_id))}
+                t={t} locale={profile.locale} returnTo={`/groups/${g.id}?l=${openLesson.id}`}
+              />
+            </div>
+          )}
           {staff && program.data?.next_program_id && nextProgram && (
             <form action={continueGroup} className="stack" style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid var(--sand)' }}>
               <input type="hidden" name="id" value={g.id} />

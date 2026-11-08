@@ -79,6 +79,8 @@ export default function GroupLessonCard({
           <input type="hidden" name="return_to" value={returnTo} />
           <input name="recording_url" type="url" defaultValue={lesson.recording_url ?? ''} placeholder={t('recordingLink')}
             aria-label={t('recordingLink')} style={{ flex: '1 1 200px' }} />
+          <input name="homework_url" type="url" defaultValue={lesson.homework_url ?? ''} placeholder={t('groupHomework')}
+            aria-label={t('groupHomework')} title={t('groupHomeworkHint')} style={{ flex: '1 1 200px' }} />
           <button className="small" type="submit">{t('save')}</button>
         </form>
         <div className="row">

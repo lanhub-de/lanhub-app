@@ -7,8 +7,8 @@ import { kyivLocalToIso } from '@/lib/i18n';
 const STATUSES = ['scheduled', 'done', 'no_show', 'late_cancel', 'cancelled', 'force_majeure', 'rescheduled'];
 
 function back(path: string, error?: string) {
-  revalidatePath(path);
-  redirect(error ? `${path}?e=${encodeURIComponent(error)}` : path);
+  revalidatePath(path.split('?')[0]);
+  redirect(error ? `${path}${path.includes('?') ? '&' : '?'}e=${encodeURIComponent(error)}` : path);
 }
 
 export async function setLessonStatus(formData: FormData) {

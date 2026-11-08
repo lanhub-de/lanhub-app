@@ -20,7 +20,7 @@ export default async function PayoutsPage({
   const [summary, lines, adjustments, teachers] = await Promise.all([
     supabase.from('monthly_payouts').select('teacher_id, teacher_name, total, lessons_count, review_status, currency').eq('month', month).order('teacher_name'),
     supabase.from('lesson_pay')
-      .select('amount, currency, teacher_id, lessons(starts_at, kind, status, students(full_name, level), groups(name))')
+      .select('amount, currency, teacher_id, lessons(starts_at, kind, status, students!lessons_student_id_fkey(full_name, level), groups!lessons_group_id_fkey(name))')
       .eq('month', month).returns<PayLine[]>(),
     supabase.from('payout_adjustments').select('teacher_id, description, amount, currency').eq('month', month),
     supabase.from('profiles').select('id, full_name').in('role', ['teacher', 'head_teacher', 'owner']).order('full_name'),

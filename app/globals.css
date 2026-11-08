@@ -223,3 +223,4 @@ details > summary::-webkit-details-marker { display: none; }
   .chat-list, .chat-main { max-height: none; min-height: 0; }
   .chat-messages { max-height: calc(100vh - 260px); }
 }
+tr.row-open td { background: var(--rose); }

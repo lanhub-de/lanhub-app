@@ -1,7 +1,9 @@
+// Embeds name their foreign key: lesson_absences links lessons and students too,
+// so a bare students(...) from lessons is ambiguous for the API (HTTP 300).
 import type { LessonView } from '@/components/LessonRow';
 
 export const LESSON_SELECT =
-  'id, starts_at, status, kind, zoom_url, teacher_id, group_id, recording_url, homework_url, students(full_name, level), groups(name, level), profiles!lessons_teacher_id_fkey(full_name), pending_teacher, invites!lessons_pending_teacher_fkey(full_name), program_lessons(n, title, topic, homework_url, vocab_url, slides_url, teacher_note)';
+  'id, starts_at, status, kind, zoom_url, teacher_id, group_id, recording_url, homework_url, students!lessons_student_id_fkey(full_name, level), groups!lessons_group_id_fkey(name, level), profiles!lessons_teacher_id_fkey(full_name), pending_teacher, invites!lessons_pending_teacher_fkey(full_name), program_lessons(n, title, topic, homework_url, vocab_url, slides_url, teacher_note)';
 
 export type ProgramLessonInfo = {
   n: number; title: string; topic: string | null; homework_url: string | null; vocab_url: string | null;

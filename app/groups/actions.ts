@@ -8,7 +8,7 @@ const str = (f: FormData, k: string) => String(f.get(k) ?? '').trim();
 const optional = (f: FormData, k: string) => str(f, k) || null;
 
 function back(path: string, error?: string | null) {
-  revalidatePath(path);
+  revalidatePath(path.split('?')[0]);
   redirect(error ? `${path}${path.includes('?') ? '&' : '?'}e=${encodeURIComponent(error)}` : path);
 }
 
@@ -175,9 +175,13 @@ export async function toggleAbsence(f: FormData) {
   back(returnTo, error?.message);
 }
 
+// The lesson's recording and, if this group's homework differs from the
+// program's, its own homework link.
 export async function setRecording(f: FormData) {
   const returnTo = str(f, 'return_to') || '/teacher';
   const supabase = await supabaseServer();
-  const { error } = await supabase.from('lessons').update({ recording_url: optional(f, 'recording_url') }).eq('id', str(f, 'lesson_id'));
+  const patch: Record<string, string | null> = { recording_url: optional(f, 'recording_url') };
+  if (f.has('homework_url')) patch.homework_url = optional(f, 'homework_url');
+  const { error } = await supabase.from('lessons').update(patch).eq('id', str(f, 'lesson_id'));
   back(returnTo, error?.message);
 }
