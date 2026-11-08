@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { supabaseServer } from '@/lib/supabase/server';
 import { canSendMail, sendInvite } from '@/lib/mail';
+import { currentMonthStart } from '@/lib/i18n';
 
 function done(path: string, error?: string | null) {
   revalidatePath(path);
@@ -143,9 +144,17 @@ export async function resendInvite(f: FormData) {
   redirect('/school/team?ok=sent');
 }
 
+// "3:750, 4:900" -> steps from 3 present 750, from 4 present 900
+function parseSteps(text: string) {
+  return text.split(/[,;\n]+/).map((p) => p.trim()).filter(Boolean).map((p) => {
+    const [n, amount] = p.split(/[:=→\s]+/).map(Number);
+    return { min_present: n, amount };
+  }).filter((s) => Number.isInteger(s.min_present) && s.min_present > 1 && s.amount >= 0);
+}
+
 export async function addRate(f: FormData) {
   const supabase = await supabaseServer();
-  const { error } = await supabase.from('teacher_rates').insert({
+  const { data, error } = await supabase.from('teacher_rates').insert({
     teacher_id: str(f, 'teacher_id'),
     kind: str(f, 'kind'),
     band: optional(f, 'band'),
@@ -153,7 +162,33 @@ export async function addRate(f: FormData) {
     package_lessons: str(f, 'package_lessons') ? Number(str(f, 'package_lessons')) : null,
     amount: Number(str(f, 'amount')),
     valid_from: str(f, 'valid_from') || new Date().toISOString().slice(0, 10),
+  }).select('id').single();
+  if (error) done('/school/team', error.message);
+  const steps = parseSteps(str(f, 'steps'));
+  if (steps.length) {
+    const { error: e2 } = await supabase.from('rate_steps').insert(steps.map((s) => ({ ...s, rate_id: data!.id })));
+    done('/school/team', e2?.message);
+  }
+  done('/school/team');
+}
+
+export async function addAllowance(f: FormData) {
+  const supabase = await supabaseServer();
+  const month = str(f, 'starts_on');
+  const { error } = await supabase.from('teacher_allowances').insert({
+    teacher_id: str(f, 'teacher_id'),
+    label: str(f, 'label') || 'Zoom',
+    amount: Number(str(f, 'amount')),
+    currency: ['UAH', 'EUR', 'USD'].includes(str(f, 'currency')) ? str(f, 'currency') : 'UAH',
+    starts_on: /^\d{4}-\d{2}$/.test(month) ? `${month}-01` : currentMonthStart(),
   });
+  done('/school/team', error?.message);
+}
+
+// The current month still gets its line; from the next one it stops.
+export async function endAllowance(f: FormData) {
+  const supabase = await supabaseServer();
+  const { error } = await supabase.from('teacher_allowances').update({ ends_on: currentMonthStart() }).eq('id', str(f, 'id'));
   done('/school/team', error?.message);
 }
 

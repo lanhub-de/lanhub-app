@@ -4,6 +4,7 @@ import { requireProfile, STAFF } from '@/lib/session';
 import { currentMonthStart, fmtDate, fmtDateTime, fmtMoney, fmtMonth } from '@/lib/i18n';
 import { LESSON_SELECT, type LessonDb } from '@/lib/lessons';
 import { rateSummary, type RateRow } from '@/lib/rates';
+import { syncAllowances } from '@/lib/allowances';
 
 type PayoutRow = { teacher_id: string; teacher_name: string; total: number | string; lessons_count: number; review_status: string; currency: string };
 type Person = { id: string; full_name: string; role: string; active: boolean };
@@ -13,6 +14,7 @@ export default async function SchoolOverview() {
   const month = currentMonthStart();
   const isOwner = profile.role === 'owner';
   const dayAgo = new Date(Date.now() - 864e5).toISOString();
+  if (isOwner) await syncAllowances(supabase, month);
 
   const [notRenewed, unmarked, payouts, people, rates] = await Promise.all([
     supabase.from('students_not_renewed').select('student_id, full_name, level, teacher_id, last_valid_until')

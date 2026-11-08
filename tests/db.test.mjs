@@ -588,3 +588,88 @@ test('an email added to a card later links a student who already signed in', asy
   assert.equal(p.role, 'student');
   assert.equal((await rows(u.id, 'select * from public.course_group($1)', [ids.g3])).length, 1);
 });
+
+// ---------------------------------------------------------------------------
+// Pay by attendance and monthly extras
+// ---------------------------------------------------------------------------
+test('group pay follows how many came: Agata 600 / 750 / 900 / 1050 / 1200', async () => {
+  const [rate] = await rows(ids.owner,
+    `insert into public.teacher_rates (teacher_id, kind, amount, valid_from) values ($1, 'group', 600, '2026-09-01')
+     returning id`, [ids.agata]);
+  await rows(ids.owner,
+    `insert into public.rate_steps (rate_id, min_present, amount) values
+     ($1, 3, 750), ($1, 4, 900), ($1, 5, 1050), ($1, 6, 1200)`, [rate.id]);
+  assert.equal((await rows(ids.agata, 'select * from public.rate_steps')).length, 4);
+  assert.equal((await rows(ids.nadiia, 'select * from public.rate_steps')).length, 0);
+  await rows(ids.agata, 'update public.rate_steps set amount = 2000');
+  const [{ m }] = await rows(ids.owner, 'select max(amount)::int as m from public.rate_steps where rate_id = $1', [rate.id]);
+  assert.equal(m, 1200);
+  const [{ create_group: gid }] = await rows(ids.manager,
+    `select public.create_group($1, $2, array[1, 3], '19:00', '2026-10-26')`, [ids.flow3, ids.agata]);
+  const studs = await rows(ids.manager,
+    `insert into public.students (full_name, market) select 'S' || n, 'intl' from generate_series(1, 7) n returning id`);
+  for (const s of studs) {
+    await rows(ids.manager, 'insert into public.group_members (group_id, student_id) values ($1, $2)', [gid, s.id]);
+  }
+  const [l1] = await rows(ids.agata, 'select id from public.lessons where group_id = $1 order by starts_at limit 1', [gid]);
+  const pay = async () => Number((await rows(ids.agata, 'select amount from public.lesson_pay where lesson_id = $1', [l1.id]))[0].amount);
+
+  // 2 of 7 missed it: 5 came
+  await rows(ids.agata, 'insert into public.lesson_absences (lesson_id, student_id) values ($1, $2), ($1, $3)',
+    [l1.id, studs[0].id, studs[1].id]);
+  await rows(ids.agata, `update public.lessons set status = 'done' where id = $1`, [l1.id]);
+  assert.equal(await pay(), 1050);
+  const [{ lesson_present: n }] = await rows(ids.agata, 'select public.lesson_present($1)', [l1.id]);
+  assert.equal(n, 5);
+
+  // marked later: one more absent, then present again
+  await rows(ids.agata, 'insert into public.lesson_absences (lesson_id, student_id) values ($1, $2)', [l1.id, studs[2].id]);
+  assert.equal(await pay(), 900);
+  await rows(ids.agata, 'delete from public.lesson_absences where lesson_id = $1 and student_id = $2', [l1.id, studs[2].id]);
+  assert.equal(await pay(), 1050);
+
+  // everyone came
+  await rows(ids.agata, 'delete from public.lesson_absences where lesson_id = $1', [l1.id]);
+  assert.equal(await pay(), 1200);
+  // only 2 came
+  await rows(ids.agata,
+    'insert into public.lesson_absences (lesson_id, student_id) select $1, unnest($2::uuid[])',
+    [l1.id, studs.slice(0, 5).map((s) => s.id)]);
+  assert.equal(await pay(), 600);
+});
+
+test('Zoom and other monthly extras: the owner sets them, the teacher sees only her own', async () => {
+  const [a] = await rows(ids.owner,
+    `insert into public.teacher_allowances (teacher_id, label, amount, currency, starts_on)
+     values ($1, 'Zoom', 19, 'EUR', '2026-11-01') returning id`, [ids.agata]);
+  await rows(ids.owner,
+    `insert into public.teacher_allowances (teacher_id, label, amount, starts_on) values ($1, 'Zoom', 913, '2026-11-01')`,
+    [ids.toma]);
+  assert.equal((await rows(ids.agata, 'select * from public.teacher_allowances')).length, 1);
+  assert.equal((await rows(ids.manager, 'select * from public.teacher_allowances')).length, 0);
+  assert.ok(await fails(ids.agata,
+    `insert into public.teacher_allowances (teacher_id, label, amount) values ($1, 'Zoom', 1000)`, [ids.agata]));
+
+  await rows(ids.owner,
+    `insert into public.payout_adjustments (teacher_id, month, description, amount, allowance_id)
+     values ($1, '2026-11-01', 'Zoom · 19 €', 930.5, $2)`, [ids.agata, a.id]);
+  assert.ok(await fails(ids.owner,
+    `insert into public.payout_adjustments (teacher_id, month, description, amount, allowance_id)
+     values ($1, '2026-11-01', 'Zoom again', 930.5, $2)`, [ids.agata, a.id]));
+});
+
+test('an invite can carry attendance rates and a monthly extra', async () => {
+  await rows(ids.owner,
+    `insert into public.invites (email, full_name, role, pending_rates, pending_allowances) values
+     ('hanna@lanhub.test', 'Ганна', 'teacher',
+      '[{"kind":"group","amount":600,"steps":[{"min_present":6,"amount":700}]}]',
+      '[{"label":"Zoom","amount":913,"starts_on":"2026-11-01"}]')`);
+  const { rows: [u] } = await db.query(
+    `insert into auth.users (id, email) values (gen_random_uuid(), 'hanna@lanhub.test') returning id`);
+  const rates = await rows(u.id,
+    `select tr.amount, s.min_present, s.amount as step from public.teacher_rates tr
+       left join public.rate_steps s on s.rate_id = tr.id`);
+  assert.deepEqual(rates.map((r) => [Number(r.amount), r.min_present, Number(r.step)]), [[600, 6, 700]]);
+  const [z] = await rows(u.id, 'select label, amount, currency, starts_on::text as s from public.teacher_allowances');
+  assert.deepEqual([z.label, Number(z.amount), z.currency, z.s], ['Zoom', 913, 'UAH', '2026-11-01']);
+});

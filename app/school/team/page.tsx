@@ -1,22 +1,26 @@
 import Shell, { Flash } from '@/components/Shell';
 import { requireProfile } from '@/lib/session';
-import { fmtDate, fmtMoney } from '@/lib/i18n';
-import { addRate, invitePerson, resendInvite, setActive } from '../actions';
+import { currentMonthStart, fmtDate, fmtMoney, fmtMonth } from '@/lib/i18n';
+import { addAllowance, addRate, endAllowance, invitePerson, resendInvite, setActive } from '../actions';
 
 type Rate = {
   id: string; teacher_id: string; kind: string; band: string | null; market: string | null;
   package_lessons: number | null; amount: number; currency: string; valid_from: string;
   students: { full_name: string } | null; groups: { name: string } | null;
+  rate_steps: { min_present: number; amount: number }[];
 };
+type Allowance = { id: string; teacher_id: string; label: string; amount: number; currency: string; starts_on: string; ends_on: string | null };
 
 export default async function TeamPage({ searchParams }: { searchParams: Promise<{ e?: string; ok?: string }> }) {
   const { supabase, profile, t } = await requireProfile(['owner']);
   const sp = await searchParams;
-  const [people, invites, rates] = await Promise.all([
+  const [people, invites, rates, allowances] = await Promise.all([
     supabase.from('profiles').select('id, full_name, email, role, active, viewer_code').order('full_name'),
     supabase.from('invites').select('email, full_name, role, created_at').is('accepted_at', null).order('created_at'),
-    supabase.from('teacher_rates').select('*, students(full_name), groups(name)').order('valid_from', { ascending: false }).returns<Rate[]>(),
+    supabase.from('teacher_rates').select('*, students(full_name), groups(name), rate_steps(min_present, amount)').order('valid_from', { ascending: false }).returns<Rate[]>(),
+    supabase.from('teacher_allowances').select('*').order('starts_on').returns<Allowance[]>(),
   ]);
+  const thisMonth = currentMonthStart();
   const teaching = (people.data ?? []).filter((p) => ['teacher', 'head_teacher', 'owner'].includes(p.role));
   const others = (people.data ?? []).filter((p) => !['teacher', 'head_teacher', 'owner'].includes(p.role));
 
@@ -91,7 +95,15 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
                   <tbody>
                     {mine.map((r) => (
                       <tr key={r.id}>
-                        <td>{describe(r)}</td>
+                        <td>
+                          {describe(r)}
+                          {r.rate_steps.length > 0 && (
+                            <div className="muted" style={{ fontSize: 13 }}>
+                              {[...r.rate_steps].sort((a, b) => a.min_present - b.min_present)
+                                .map((s) => `${t('fromPresent', { n: s.min_present })}: ${fmtMoney(s.amount, r.currency)}`).join(' · ')}
+                            </div>
+                          )}
+                        </td>
                         <td className="muted">{t('validFrom')} {fmtDate(r.valid_from, profile.locale)}</td>
                         <td className="num">{fmtMoney(r.amount, r.currency)}</td>
                       </tr>
@@ -116,8 +128,36 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
                   <select name="package_lessons" defaultValue=""><option value="">{t('anyPackage')}</option>{[8, 12, 16, 24].map((n) => <option key={n} value={n}>{n}</option>)}</select>
                 </label>
                 <label>{t('amount')}<input name="amount" type="number" step="0.01" required /></label>
+                <label>{t('rateSteps')}<input name="steps" placeholder={t('rateStepsHint')} /></label>
                 <label>{t('validFrom')}<input name="valid_from" type="date" /></label>
                 <button type="submit">{t('addRate')}</button>
+              </form>
+
+              <h2 style={{ marginTop: 20 }}>{t('allowances')}</h2>
+              <p className="muted" style={{ marginTop: 0 }}>{t('allowanceHint')}</p>
+              {(allowances.data ?? []).filter((a) => a.teacher_id === p.id && (!a.ends_on || a.ends_on >= thisMonth)).map((a) => (
+                <div key={a.id} className="spread" style={{ padding: '6px 0' }}>
+                  <span>
+                    <strong>{a.label}</strong> · {fmtMoney(a.amount, a.currency)} {t('perMonth')}
+                    <span className="muted"> · {t('validFrom')} {fmtMonth(a.starts_on, profile.locale)}{a.ends_on ? ` · ${t('untilMonth', { month: fmtMonth(a.ends_on, profile.locale) })}` : ''}</span>
+                  </span>
+                  {!a.ends_on && (
+                    <form action={endAllowance}>
+                      <input type="hidden" name="id" value={a.id} />
+                      <button className="small" type="submit">{t('stopAllowance')}</button>
+                    </form>
+                  )}
+                </div>
+              ))}
+              <form action={addAllowance} className="form" style={{ marginTop: 8 }}>
+                <input type="hidden" name="teacher_id" value={p.id} />
+                <label>{t('name')}<input name="label" defaultValue="Zoom" required /></label>
+                <label>{t('amount')}<input name="amount" type="number" step="0.01" required /></label>
+                <label>€ / грн
+                  <select name="currency" defaultValue="UAH"><option value="UAH">UAH</option><option value="EUR">EUR</option><option value="USD">USD</option></select>
+                </label>
+                <label>{t('fromMonth')}<input name="starts_on" type="month" defaultValue={thisMonth.slice(0, 7)} /></label>
+                <button type="submit">{t('addAllowance')}</button>
               </form>
               {p.id !== profile.id && (
                 <form action={setActive} style={{ marginTop: 12 }}>

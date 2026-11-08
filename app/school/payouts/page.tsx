@@ -1,6 +1,7 @@
 import Shell, { Flash } from '@/components/Shell';
 import { requireProfile } from '@/lib/session';
 import { currentMonthStart, fmtDateTime, fmtMoney, fmtMonth } from '@/lib/i18n';
+import { syncAllowances } from '@/lib/allowances';
 import { addAdjustment, setPayoutStatus } from '../actions';
 
 type PayLine = {
@@ -14,6 +15,7 @@ export default async function PayoutsPage({
   const { supabase, profile, t } = await requireProfile(['owner']);
   const sp = await searchParams;
   const month = /^\d{4}-\d{2}-01$/.test(sp.month ?? '') ? sp.month! : currentMonthStart();
+  await syncAllowances(supabase, month);
 
   const [summary, lines, adjustments, teachers] = await Promise.all([
     supabase.from('monthly_payouts').select('teacher_id, teacher_name, total, lessons_count, review_status, currency').eq('month', month).order('teacher_name'),
