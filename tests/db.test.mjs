@@ -938,3 +938,16 @@ test('the head teacher sees invited teachers (to open their cabinets), a teacher
   assert.equal((await rows(ids.agata, 'select * from public.monthly_payouts where teacher_id = $1', [ids.toma])).length, 0);
   assert.equal((await rows(ids.agata, 'select * from public.teacher_rates where teacher_id = $1', [ids.toma])).length, 0);
 });
+
+test("inviting a student: her teacher or the school puts her email on the card; another teacher cannot", async () => {
+  const [row] = await rows(ids.toma, `select * from public.set_student_email($1, ' Sarah.New@Mail.TEST ', 'en')`, [ids.sarah]);
+  assert.equal(row.email, 'sarah.new@mail.test');
+  assert.equal(row.locale, 'en');
+  await rows(ids.toma, 'select public.student_invite_sent($1)', [ids.sarah]);
+  const [card] = await rows(ids.owner, 'select email, invited_at from public.students where id = $1', [ids.sarah]);
+  assert.ok(card.invited_at);
+  assert.ok(await fails(ids.toma, `select * from public.set_student_email($1, 'not-an-email', 'en')`, [ids.sarah]));
+  await person('stranger_teacher', 'Ольга', 'teacher');
+  assert.ok(await fails(ids.stranger_teacher, `select * from public.set_student_email($1, 'x@mail.test', 'uk')`, [ids.sarah]));
+  assert.ok(await fails(ids.sarahLogin, 'select public.student_invite_sent($1)', [ids.sarah]));
+});

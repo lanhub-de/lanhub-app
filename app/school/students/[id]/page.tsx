@@ -6,6 +6,7 @@ import { requireProfile, STAFF } from '@/lib/session';
 import { fmtDate, fmtMoney } from '@/lib/i18n';
 import { LESSON_SELECT, toView, type LessonDb } from '@/lib/lessons';
 import { INVITE, pendingTeachers } from '@/lib/invites';
+import InviteStudent from '@/components/InviteStudent';
 import { addPackage, addToGroup, deleteStudent, extendPackage, updateStudent } from '../../actions';
 
 export default async function StudentPage({
@@ -106,6 +107,7 @@ export default async function StudentPage({
         </section>
 
         <section className="stack">
+          <InviteStudent t={t} locale={profile.locale} returnTo={`/school/students/${id}`} s={s} />
           <form action={updateStudent} className="card stack">
             <input type="hidden" name="id" value={id} />
             <label>{t('name')}<input name="full_name" defaultValue={s.full_name} required /></label>

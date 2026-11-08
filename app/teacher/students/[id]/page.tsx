@@ -11,6 +11,7 @@ import { saveStudentInfo } from '@/app/teacher/actions';
 import { Flash } from '@/components/Shell';
 import Submit from '@/components/Submit';
 import ScheduleLesson from '@/components/ScheduleLesson';
+import InviteStudent from '@/components/InviteStudent';
 
 type L = { id: string; starts_at: string; status: string; recording_url: string | null; homework_url: string | null; note: string | null; homework_text: string | null };
 
@@ -26,7 +27,7 @@ export default async function StudentFolder({
   const q = asParam(who);
 
   const { data: s } = await supabase.from('students')
-    .select('id, full_name, level, market, zoom_url, goodnotes_url, quizlet_url, schedule_note').eq('id', id).maybeSingle();
+    .select('id, full_name, level, market, zoom_url, goodnotes_url, quizlet_url, schedule_note, email, locale, invited_at, profile_id').eq('id', id).maybeSingle();
   if (!s) notFound();
   const here = `/teacher/students/${id}${q ? `?${q}` : ''}`;
   const from = new Date(Date.now() - 120 * 864e5).toISOString();
@@ -146,6 +147,7 @@ export default async function StudentFolder({
         </section>
 
         <aside className="stack cabinet-side">
+          <InviteStudent t={t} locale={profile.locale} returnTo={here} s={s} />
           <form action={saveStudentInfo} className="card stack info-form">
             <h2 style={{ margin: 0 }}>{t('studentInfo')}</h2>
             <input type="hidden" name="student_id" value={s.id} />

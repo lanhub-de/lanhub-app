@@ -54,6 +54,51 @@ export async function sendInvite(to: string, name: string, role: string, locale:
   }
 }
 
+// A student's invitation: her lessons, Zoom, homework and the chat with her
+// teacher in one place. She signs in with this email (the card's email).
+export async function sendStudentInvite(to: string, name: string, teacher: string | null, locale: string): Promise<string | null> {
+  const key = process.env.RESEND_API_KEY;
+  if (!key) return 'RESEND_API_KEY is not set';
+  const uk = locale === 'uk';
+  const first = esc(name.split(' ')[0]);
+  const t = uk
+    ? {
+      subject: 'Твій кабінет у LanHub',
+      hi: `Привіт, ${first}!`,
+      body: `${teacher ? `${esc(teacher)} запрошує` : 'Запрошуємо'} тебе в LanHub. Тут твої заняття і посилання на Zoom, матеріали, домашні завдання і чат із викладачкою, все в одному місці.`,
+      how: `Натисни кнопку і увійди з цією поштою: <b>${esc(to)}</b>. Пароль не потрібен: ми надішлемо лист із кодом для входу.`,
+      button: 'Відкрити LanHub',
+      tip: 'Порада: збережи LanHub на телефоні чи комп’ютері як застосунок і увімкни сповіщення, щоб не пропускати повідомлення.',
+    }
+    : {
+      subject: 'Your LanHub space',
+      hi: `Hi ${first}!`,
+      body: `${teacher ? `${esc(teacher)} invites` : 'We invite'} you to LanHub: your lessons and Zoom links, materials, homework and the chat with your teacher, all in one place.`,
+      how: `Click the button and sign in with this email address: <b>${esc(to)}</b>. No password needed: we will send you an email with a sign-in code.`,
+      button: 'Open LanHub',
+      tip: 'Tip: add LanHub to your phone or computer as an app and turn on notifications, so you never miss a message.',
+    };
+  const html = `<div style="font-family:Arial,Helvetica,sans-serif;max-width:480px;margin:0 auto;padding:24px;color:#1f1a17">
+  <p style="font-size:22px;font-weight:700;color:#a30000;margin:0 0 20px">LanHub</p>
+  <p style="font-size:16px;font-weight:700;margin:0 0 10px">${t.hi}</p>
+  <p style="font-size:16px;line-height:1.5;margin:0 0 12px">${t.body}</p>
+  <p style="font-size:16px;line-height:1.5;margin:0 0 22px">${t.how}</p>
+  <p style="margin:0 0 24px"><a href="${SITE}/login${uk ? '?lang=uk' : ''}" style="display:inline-block;background:#a30000;color:#ffffff;text-decoration:none;font-weight:700;padding:14px 28px;border-radius:10px">${t.button}</a></p>
+  <p style="font-size:13px;color:#6b625b;margin:0">${t.tip}</p>
+</div>`;
+  try {
+    const r = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: FROM, to: [to], subject: t.subject, html }),
+    });
+    if (!r.ok) return `Resend: ${r.status} ${(await r.text()).slice(0, 200)}`;
+    return null;
+  } catch (e) {
+    return String(e);
+  }
+}
+
 // "You have a new message" for people without notifications switched on.
 export async function sendChatNotice(
   to: string, name: string, locale: string, from: string, chat: string, snippet: string, path: string,

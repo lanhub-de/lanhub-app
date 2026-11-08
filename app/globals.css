@@ -454,3 +454,18 @@ details.s-prev > summary { display: flex; justify-content: space-between; gap: 1
 .review-when { color: var(--muted); font-variant-numeric: tabular-nums; }
 .review-files { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 @media (max-width: 640px) { .review-row { grid-template-columns: minmax(0, 1fr) auto; } .review-when { grid-column: 1 / -1; margin-bottom: -6px; } }
+
+/* inviting students */
+.invite-card { display: flex; flex-direction: column; gap: 10px; }
+.invite-card label { display: grid; gap: 4px; font-size: 14px; }
+.invite-card button { align-self: flex-start; }
+.invite-rows { display: flex; flex-direction: column; }
+.invite-row { display: grid; grid-template-columns: minmax(120px, 1fr) minmax(200px, 1.6fr) 80px minmax(140px, auto); gap: 10px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--sand); }
+.invite-row:last-child { border-bottom: 0; }
+.invite-row .pill { justify-self: start; grid-column: 2 / -1; }
+.invite-again { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
+.invite-again input { width: auto; min-height: 0; }
+@media (max-width: 640px) {
+  .invite-row { grid-template-columns: 1fr 72px; }
+  .invite-row strong, .invite-row .invite-again, .invite-row .pill { grid-column: 1 / -1; }
+}

@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { supabaseServer } from '@/lib/supabase/server';
 import { kyivLocalToIso } from '@/lib/i18n';
 import { sendMessage } from '@/app/chat/actions';
+import { sendStudentInvite } from '@/lib/mail';
 
 const STATUSES = ['scheduled', 'done', 'no_show', 'late_cancel', 'cancelled', 'force_majeure', 'rescheduled'];
 
@@ -139,4 +140,43 @@ export async function saveStudentInfo(formData: FormData) {
     p_schedule: v('schedule_note'), p_notes: v('notes'),
   });
   back(returnTo, error?.message);
+}
+
+// Invite a student to LanHub: her email goes on the card (she signs in with
+// it) and she gets an invitation email in her language.
+async function inviteOne(supabase: Awaited<ReturnType<typeof supabaseServer>>, sid: string, email: string, locale: string) {
+  const { data, error } = await supabase.rpc('set_student_email', { sid, p_email: email, p_locale: locale });
+  if (error) return error.message;
+  const row = ((data ?? []) as { full_name: string; teacher_name: string | null; email: string; locale: string }[])[0];
+  if (!row) return 'Student not found';
+  const mailError = await sendStudentInvite(row.email, row.full_name, row.teacher_name, row.locale);
+  if (mailError) return mailError;
+  await supabase.rpc('student_invite_sent', { sid });
+  return null;
+}
+
+export async function inviteStudent(formData: FormData) {
+  const sid = String(formData.get('student_id'));
+  const returnTo = String(formData.get('return_to') || '/teacher');
+  const supabase = await supabaseServer();
+  const err = await inviteOne(supabase, sid, String(formData.get('email') ?? ''), String(formData.get('locale') ?? 'en'));
+  back(returnTo, err ?? undefined);
+}
+
+// The whole group at once: every row with an email gets invited.
+export async function inviteGroup(formData: FormData) {
+  const returnTo = String(formData.get('return_to') || '/teacher');
+  const supabase = await supabaseServer();
+  const ids = formData.getAll('student_id').map(String);
+  const errors: string[] = [];
+  let sent = 0;
+  for (const sid of ids) {
+    const email = String(formData.get(`email_${sid}`) ?? '').trim();
+    // already invited: only again when ticked
+    if (!email || (formData.get(`was_${sid}`) && !formData.get(`again_${sid}`))) continue;
+    const err = await inviteOne(supabase, sid, email, String(formData.get(`locale_${sid}`) ?? 'en'));
+    if (err) errors.push(`${String(formData.get(`name_${sid}`) ?? '')}: ${err}`); else sent += 1;
+  }
+  revalidatePath(returnTo.split('?')[0]);
+  redirect(`${returnTo}${returnTo.includes('?') ? '&' : '?'}${errors.length ? `e=${encodeURIComponent(errors.join('; '))}` : `sent=${sent}`}`);
 }

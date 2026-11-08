@@ -150,6 +150,9 @@ export default async function GroupPage({ params, searchParams }: {
               <h2 id="mem-h" style={{ margin: 0 }}>{t('members')}</h2>
               <span className="muted">{(members.data ?? []).length}{g.capacity ? ` / ${g.capacity}` : ''}</span>
             </div>
+            {(members.data ?? []).length > 0 && (
+              <Link href={`/groups/${g.id}/invite`} className="btn small" style={{ marginBottom: 6 }}>✉️ {t('inviteGroupBtn')}</Link>
+            )}
             {(members.data ?? []).length === 0 && <p className="muted">{t('nothingHere')}</p>}
             {(members.data ?? []).map((m) => (
               <div key={m.student_id} className="spread" style={{ padding: '8px 0', borderBottom: '1px solid var(--sand)' }}>
