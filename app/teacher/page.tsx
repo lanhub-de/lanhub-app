@@ -31,7 +31,7 @@ export default async function TeacherPage({ searchParams }: { searchParams: Prom
   const ago30 = new Date(now.getTime() - 30 * 864e5).toISOString();
   const month = currentMonthStart();
 
-  const [unmarked, ahead, recent, students, groups, packages, pay, payLines, extras, toCheck] = await Promise.all([
+  const [unmarked, ahead, recent, students, groups, packages, pay, payLines, extras, toCheck, settings] = await Promise.all([
     theirs(supabase.from('lessons').select(select)).eq('status', 'scheduled')
       .lt('starts_at', startToday.toISOString()).gte('starts_at', ago30).order('starts_at').returns<LessonDb[]>(),
     theirs(supabase.from('lessons').select(select))
@@ -39,7 +39,7 @@ export default async function TeacherPage({ searchParams }: { searchParams: Prom
     theirs(supabase.from('lessons').select(select)).neq('status', 'scheduled')
       .gte('starts_at', ago30).lt('starts_at', startToday.toISOString()).order('starts_at', { ascending: false })
       .limit(8).returns<LessonDb[]>(),
-    supabase.from('students').select('id, full_name, level, teacher_id, pending_teacher').eq('status', 'active').order('full_name'),
+    supabase.from('students').select('id, full_name, level, teacher_id, pending_teacher, schedule_note').eq('status', 'active').order('full_name'),
     theirs(supabase.from('group_overview').select('id, name, members, lessons_total, lessons_done')).eq('active', true).order('name'),
     supabase.from('package_usage').select('student_id, lessons_left, valid_until, status').eq('status', 'active'),
     supabase.from('monthly_payouts').select('total, lessons_count, currency').eq('teacher_id', who.id).eq('month', month),
@@ -52,7 +52,10 @@ export default async function TeacherPage({ searchParams }: { searchParams: Prom
     who.pending ? Promise.resolve({ count: 0 })
       : supabase.from('homework').select('id, lessons!inner(teacher_id, pending_teacher)', { count: 'exact', head: true })
         .eq('status', 'submitted').eq('lessons.teacher_id', who.id).is('lessons.pending_teacher', null),
+    who.pending ? Promise.resolve({ data: null })
+      : supabase.from('teacher_settings').select('zoom_url').eq('teacher_id', who.id).maybeSingle(),
   ]);
+  const teacherZoom = (settings.data as { zoom_url: string | null } | null)?.zoom_url ?? null;
   // unread chats only make sense for your own cabinet
   const chats = who.viewing ? [] : (((await supabase.rpc('my_chats')).data ?? []) as Chat[]).filter((c) => c.mine && c.unread > 0);
 
@@ -84,7 +87,7 @@ export default async function TeacherPage({ searchParams }: { searchParams: Prom
   const card = (l: LessonDb, showDay = false) => l.group_id && l.program_lessons
     ? <GroupLessonCard key={l.id} lesson={l} members={membersOf(l.group_id)} absent={absentIn(l.id)} t={t} locale={profile.locale} returnTo={here} />
     : <TodayLessonCard key={l.id} lesson={l} t={t} locale={profile.locale} returnTo={here} showDay={showDay}
-        materials={materialsOf(l.id)} library={libraryFiles.data ?? []} userId={profile.id} />;
+        materials={materialsOf(l.id)} library={libraryFiles.data ?? []} userId={profile.id} teacherZoom={teacherZoom} />;
 
   const myStudents = (students.data ?? []).filter((s) => (who.pending ? s.pending_teacher === who.pending : s.teacher_id === who.id && !s.pending_teacher));
   const pkgByStudent = new Map((packages.data ?? []).map((p) => [p.student_id, p]));
@@ -133,6 +136,13 @@ export default async function TeacherPage({ searchParams }: { searchParams: Prom
             ? <div className="card muted">{t('noLessonsToday')}</div>
             : todays.map((l) => card(l))}
 
+          {!who.pending && !teacherZoom && !who.viewing && (
+            <Link href="/settings" className="notice">
+              <strong>{t('addZoomRoom')}</strong>
+              <span>{t('myZoomRoomHint')}</span>
+            </Link>
+          )}
+
           <div className="card today-stats">
             <span>{t('markedToday')}: <strong>{markedToday}</strong></span>
             {!who.pending && <span>{t('addedThisMonth')}: <strong>{fmtMoney(payRow?.total ?? 0)}</strong></span>}
@@ -154,12 +164,14 @@ export default async function TeacherPage({ searchParams }: { searchParams: Prom
                 return (
                   <div key={s.id} className="student-tile">
                     <strong>{s.full_name}</strong>
-                    <span className="muted" style={{ fontSize: 13 }}>{s.level ?? ''}</span>
+                    <span className="muted" style={{ fontSize: 13 }}>{[s.level, s.schedule_note].filter(Boolean).join(' · ')}</span>
                     <span className={`pill ${p ? (p.lessons_left <= 2 ? 'warn' : '') : 'warn'}`} style={{ alignSelf: 'flex-start' }}>
                       {p ? `${t('lessonsLeft', { n: p.lessons_left })}${p.valid_until ? ` · ${t('validUntil', { date: fmtDate(p.valid_until, profile.locale) })}` : ''}` : t('noPackage')}
                     </span>
                     <Link href={`/teacher/students/${s.id}${q ? `?${q}` : ''}`} className="small-link">{t('folder')}</Link>
-                    {!who.pending && (
+                    {who.pending ? (
+                      <span className="link-btn off" title={t('chatAfterSignIn', { name: who.name })}>{t('write')}</span>
+                    ) : (
                       <form action={openChat}>
                         <input type="hidden" name="kind" value="direct" />
                         <input type="hidden" name="student_id" value={s.id} />

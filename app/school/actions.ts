@@ -6,8 +6,14 @@ import { canSendMail, sendInvite } from '@/lib/mail';
 import { currentMonthStart } from '@/lib/i18n';
 import { parseTeacherChoice } from '@/lib/invites';
 
+// Refresh in place after a change (no jump to the top); errors come back in
+// the address. go() is for actions that lead to another page.
 function done(path: string, error?: string | null) {
-  revalidatePath(path);
+  revalidatePath(path.split('?')[0]);
+  if (error) redirect(`${path}${path.includes('?') ? '&' : '?'}e=${encodeURIComponent(error)}`);
+}
+function go(path: string, error?: string | null): never {
+  revalidatePath(path.split('?')[0]);
   redirect(error ? `${path}${path.includes('?') ? '&' : '?'}e=${encodeURIComponent(error)}` : path);
 }
 
@@ -31,8 +37,8 @@ export async function addStudent(f: FormData) {
     email: optional(f, 'email'),
     contact: optional(f, 'contact'),
   }).select('id').single();
-  if (error) done('/school/students', error.message);
-  done(`/school/students/${data!.id}`);
+  if (error) go('/school/students', error.message);
+  go(`/school/students/${data!.id}`);
 }
 
 export async function updateStudent(f: FormData) {
@@ -59,13 +65,13 @@ export async function addPackage(f: FormData) {
     lessons_total: Number(str(f, 'lessons_total')),
     note: optional(f, 'note'),
   }).select('id').single();
-  if (error) done(`/school/students/${studentId}`, error.message);
+  if (error) go(`/school/students/${studentId}`, error.message);
   const amount = str(f, 'amount');
   if (amount) {
     const { error: payError } = await supabase.from('student_payments').insert({
       package_id: data!.id, amount: Number(amount), currency: str(f, 'currency') || 'UAH', method: optional(f, 'method'),
     });
-    if (payError) done(`/school/students/${studentId}`, payError.message);
+    if (payError) go(`/school/students/${studentId}`, payError.message);
   }
   done(`/school/students/${studentId}`);
 }
@@ -74,14 +80,14 @@ export async function addPackage(f: FormData) {
 // lessons stays in the history (status "left" hides them from the lists).
 export async function deleteStudent(f: FormData) {
   const id = str(f, 'id');
-  if (str(f, 'sure') !== '1') done(`/school/students/${id}`);
+  if (str(f, 'sure') !== '1') go(`/school/students/${id}`);
   const supabase = await supabaseServer();
   const { count } = await supabase.from('lessons').select('id', { count: 'exact', head: true }).eq('student_id', id);
-  if (count) done(`/school/students/${id}`, 'HAS_LESSONS');
+  if (count) go(`/school/students/${id}`, 'HAS_LESSONS');
   const { data, error } = await supabase.from('students').delete().eq('id', id).select('id');
-  if (error) done(`/school/students/${id}`, error.message);
-  if (!data?.length) done(`/school/students/${id}`, 'Only the owner can delete a student');
-  done('/school/students');
+  if (error) go(`/school/students/${id}`, error.message);
+  if (!data?.length) go(`/school/students/${id}`, 'Only the owner can delete a student');
+  go('/school/students');
 }
 
 export async function extendPackage(f: FormData) {
@@ -144,10 +150,10 @@ export async function invitePerson(f: FormData) {
     locale,
     pending_rates: teaches ? TEMPLATES[str(f, 'template')] ?? [] : [],
   });
-  if (error) done('/school/team', error.message);
+  if (error) go('/school/team', error.message);
   if (canSendMail()) {
     const mailError = await sendInvite(email, str(f, 'full_name'), role, locale);
-    if (mailError) done('/school/team', mailError);
+    if (mailError) go('/school/team', mailError);
     revalidatePath('/school/team');
     redirect('/school/team?ok=sent');
   }
@@ -158,7 +164,7 @@ export async function resendInvite(f: FormData) {
   const supabase = await supabaseServer();
   const { data: inv } = await supabase.from('invites').select('email, full_name, role, locale')
     .eq('email', str(f, 'email')).is('accepted_at', null).maybeSingle();
-  if (!inv) done('/school/team', 'No such invite');
+  if (!inv) go('/school/team', 'No such invite');
   const mailError = await sendInvite(inv!.email, inv!.full_name, inv!.role, inv!.locale);
   if (mailError) done('/school/team', mailError);
   revalidatePath('/school/team');
@@ -184,7 +190,7 @@ export async function addRate(f: FormData) {
     amount: Number(str(f, 'amount')),
     valid_from: str(f, 'valid_from') || new Date().toISOString().slice(0, 10),
   }).select('id').single();
-  if (error) done('/school/team', error.message);
+  if (error) go('/school/team', error.message);
   const steps = parseSteps(str(f, 'steps'));
   if (steps.length) {
     const { error: e2 } = await supabase.from('rate_steps').insert(steps.map((s) => ({ ...s, rate_id: data!.id })));

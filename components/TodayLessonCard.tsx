@@ -1,9 +1,11 @@
 import Link from 'next/link';
 import type { Locale, T } from '@/lib/i18n';
 import { SCHOOL_TZ } from '@/lib/i18n';
-import type { LessonDb } from '@/lib/lessons';
-import { attachLessonFile, detachLessonFile, moveLesson, setLessonStatus } from '@/app/teacher/actions';
+import { zoomOf, type LessonDb } from '@/lib/lessons';
+import { fmtMoney } from '@/lib/i18n';
+import { attachLessonFile, detachLessonFile, moveLesson, saveLessonPlan, setLessonStatus } from '@/app/teacher/actions';
 import LessonFileUpload from '@/components/LessonFileUpload';
+import Submit from '@/components/Submit';
 
 export type FileRef = { id: string; title: string; level?: string | null };
 
@@ -26,11 +28,13 @@ function localValue(iso: string) {
 // An individual lesson in the teacher's day, as in the mockup: the time, who,
 // and three buttons. Anything else (cancelled in time, force majeure) under "…".
 export default function TodayLessonCard({
-  lesson, t, locale, returnTo, showDay, materials = [], library = [], userId,
+  lesson, t, locale, returnTo, showDay, materials = [], library = [], userId, teacherZoom,
 }: {
   lesson: LessonDb; t: T; locale: Locale; returnTo: string; showDay?: boolean;
-  materials?: FileRef[]; library?: FileRef[]; userId?: string;
+  materials?: FileRef[]; library?: FileRef[]; userId?: string; teacherZoom?: string | null;
 }) {
+  const zoom = zoomOf(lesson, teacherZoom);
+  const paid = lesson.lesson_pay?.amount != null && Number(lesson.lesson_pay.amount) > 0 ? Number(lesson.lesson_pay.amount) : null;
   const held = ['done', 'no_show', 'late_cancel'].includes(lesson.status);
   const who = lesson.students?.full_name ?? lesson.groups?.name ?? '';
   const level = lesson.students?.level ?? lesson.groups?.level;
@@ -39,7 +43,7 @@ export default function TodayLessonCard({
       <input type="hidden" name="id" value={lesson.id} />
       <input type="hidden" name="status" value={s} />
       <input type="hidden" name="return_to" value={returnTo} />
-      <button className={cls} type="submit">{label}</button>
+      <Submit className={cls}>{label}</Submit>
     </form>
   );
   return (
@@ -63,14 +67,14 @@ export default function TodayLessonCard({
                   <input type="hidden" name="id" value={lesson.id} />
                   <input type="hidden" name="return_to" value={returnTo} />
                   <label>{t('newTime')}<input type="datetime-local" name="starts_at" required defaultValue={localValue(lesson.starts_at)} /></label>
-                  <button className="primary small" type="submit">{t('save')}</button>
+                  <Submit className="primary small">{t('save')}</Submit>
                 </form>
               </details>
               {status('done', t('markDone'), 'primary')}
             </>
           ) : (
             <>
-              <span className={`pill ${held ? 'ok' : ''}`}>{t(`st_${lesson.status}` as never)}</span>
+              <span className={`pill ${held ? 'ok' : ''}`}>{t(`st_${lesson.status}` as never)}{held && paid ? ` · +${fmtMoney(paid)}` : ''}</span>
               {status('scheduled', t('undo'), 'small')}
             </>
           )}
@@ -78,8 +82,8 @@ export default function TodayLessonCard({
       </div>
       <div className="today-bottom">
         <span className="row" style={{ gap: 14 }}>
-          {lesson.zoom_url
-            ? <a href={lesson.zoom_url} target="_blank" rel="noreferrer" className="zoom-link">🎥 {t('joinZoom')}</a>
+          {zoom
+            ? <a href={zoom} target="_blank" rel="noreferrer" className="zoom-link">🎥 {t('joinZoom')}</a>
             : <span className="muted">{t('noZoom')}</span>}
         </span>
         <span className="row" style={{ gap: 12 }}>
@@ -93,6 +97,23 @@ export default function TodayLessonCard({
           )}
         </span>
       </div>
+      <details className="plan">
+        <summary>
+          {lesson.note || lesson.homework_text ? (
+            <span className="plan-sum">
+              {lesson.note && <span><span className="muted">{t('lessonTopic')}:</span> {lesson.note}</span>}
+              {lesson.homework_text && <span><span className="muted">{t('hwTask')}:</span> {lesson.homework_text}</span>}
+            </span>
+          ) : <span className="link-btn">+ {t('topicAndHomework')}</span>}
+        </summary>
+        <form action={saveLessonPlan} className="plan-form">
+          <input type="hidden" name="id" value={lesson.id} />
+          <input type="hidden" name="return_to" value={returnTo} />
+          <label>{t('lessonTopic')}<input name="note" defaultValue={lesson.note ?? ''} placeholder="worauf / darauf" maxLength={300} /></label>
+          <label>{t('hwTask')}<textarea name="homework_text" rows={2} defaultValue={lesson.homework_text ?? ''} maxLength={4000} /></label>
+          <Submit className="primary small">{t('save')}</Submit>
+        </form>
+      </details>
       <div className="materials">
         <span className="muted" style={{ fontSize: 13 }}>{t('lessonMaterials')}:</span>
         {materials.map((f) => (
@@ -102,7 +123,7 @@ export default function TodayLessonCard({
               <input type="hidden" name="lesson_id" value={lesson.id} />
               <input type="hidden" name="file_id" value={f.id} />
               <input type="hidden" name="return_to" value={returnTo} />
-              <button type="submit" aria-label={t('remove')} title={t('remove')}>×</button>
+              <Submit ariaLabel={t('remove')} title={t('remove')}>×</Submit>
             </form>
           </span>
         ))}
@@ -118,7 +139,7 @@ export default function TodayLessonCard({
                   <option key={f.id} value={f.id}>{f.title}{f.level ? ` · ${f.level}` : ''}</option>
                 ))}
               </select>
-              <button className="primary small" type="submit">{t('add')}</button>
+              <Submit className="primary small">{t('add')}</Submit>
             </form>
           </details>
         )}

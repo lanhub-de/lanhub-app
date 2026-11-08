@@ -19,7 +19,10 @@ export async function middleware(request: NextRequest) {
     },
   );
 
-  const { data: { user } } = await supabase.auth.getUser();
+  // getClaims checks the sign-in token locally when it can (no round trip to
+  // the auth server on every page) and refreshes it when it runs out.
+  const { data } = await supabase.auth.getClaims();
+  const user = data?.claims?.sub ?? null;
   const path = request.nextUrl.pathname;
   if (!user && !path.startsWith('/login') && !path.startsWith('/auth/')) {
     const url = request.nextUrl.clone();

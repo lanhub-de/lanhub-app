@@ -7,27 +7,33 @@ import { fmtDate, fmtDateTime } from '@/lib/i18n';
 import { HOMEWORK_COLUMNS, withFileLinks, type Homework } from '@/lib/homework';
 import { asParam, whoseCabinet } from '@/lib/cabinet';
 import { openChat } from '@/app/chat/actions';
+import { saveStudentInfo } from '@/app/teacher/actions';
+import { Flash } from '@/components/Shell';
+import Submit from '@/components/Submit';
 
-type L = { id: string; starts_at: string; status: string; recording_url: string | null; homework_url: string | null };
+type L = { id: string; starts_at: string; status: string; recording_url: string | null; homework_url: string | null; note: string | null; homework_text: string | null };
 
 // A student's folder for the teacher: everything from their lessons in one
 // place: materials, the lessons with recordings, homework and the package.
 export default async function StudentFolder({
   params, searchParams,
-}: { params: Promise<{ id: string }>; searchParams: Promise<{ as?: string }> }) {
+}: { params: Promise<{ id: string }>; searchParams: Promise<{ as?: string; e?: string }> }) {
   const { supabase, profile, t } = await requireProfile(TEACHING);
   const { id } = await params;
   const sp = await searchParams;
   const who = await whoseCabinet(supabase, profile, sp.as);
   const q = asParam(who);
 
-  const { data: s } = await supabase.from('students').select('id, full_name, level, market').eq('id', id).maybeSingle();
+  const { data: s } = await supabase.from('students')
+    .select('id, full_name, level, market, zoom_url, goodnotes_url, quizlet_url, schedule_note').eq('id', id).maybeSingle();
   if (!s) notFound();
+  const here = `/teacher/students/${id}${q ? `?${q}` : ''}`;
   const from = new Date(Date.now() - 120 * 864e5).toISOString();
-  const lessonsQ = supabase.from('lessons').select('id, starts_at, status, recording_url, homework_url')
+  const lessonsQ = supabase.from('lessons').select('id, starts_at, status, recording_url, homework_url, note, homework_text')
     .eq('student_id', id).gte('starts_at', from).order('starts_at', { ascending: false }).limit(60);
-  const [lessonsRes, pkg] = await Promise.all([
+  const [lessonsRes, notesRes, pkg] = await Promise.all([
     who.pending ? lessonsQ.eq('pending_teacher', who.pending) : lessonsQ.eq('teacher_id', who.id),
+    supabase.from('student_notes').select('notes').eq('student_id', id).maybeSingle(),
     supabase.from('package_usage').select('lessons_total, lessons_used, lessons_left, valid_until, status').eq('student_id', id).eq('status', 'active').maybeSingle(),
   ]);
   const lessons = (lessonsRes.data ?? []) as L[];
@@ -46,6 +52,7 @@ export default async function StudentFolder({
   for (const f of files.data ?? []) {
     if (f.files && !materials.has(f.files.id)) materials.set(f.files.id, { ...f.files, on: lessonOf.get(f.lesson_id)?.starts_at ?? '' });
   }
+  const notes = (notesRes.data as { notes: string } | null)?.notes ?? '';
   const p = pkg.data as { lessons_total: number; lessons_used: number; lessons_left: number; valid_until: string | null } | null;
 
   return (
@@ -54,17 +61,25 @@ export default async function StudentFolder({
       <div className="spread" style={{ alignItems: 'flex-start' }}>
         <div>
           <h1 style={{ marginBottom: 4 }}>{t('folderTitle', { name: s.full_name })}</h1>
-          <p className="muted" style={{ marginTop: 0 }}>{[s.level, s.market === 'intl' ? t('market_intl') : t('market_ua')].filter(Boolean).join(' · ')}</p>
+          <p className="muted" style={{ marginTop: 0 }}>{[s.level, s.market === 'intl' ? t('market_intl') : t('market_ua'), s.schedule_note].filter(Boolean).join(' · ')}</p>
         </div>
-        {!who.pending && (
-          <form action={openChat}>
-            <input type="hidden" name="kind" value="direct" />
-            <input type="hidden" name="student_id" value={s.id} />
-            <input type="hidden" name="teacher_id" value={who.id} />
-            <button className="primary" type="submit">💬 {t('write')}</button>
-          </form>
-        )}
+        <div className="row">
+          <Link href={`/students/${s.id}/preview`} className="btn">👁 {t('viewAsStudent')}</Link>
+          {s.zoom_url && <a href={s.zoom_url} target="_blank" rel="noreferrer" className="btn">🎥 Zoom</a>}
+          {who.pending ? (
+            <button className="primary" type="button" disabled title={t('chatAfterSignIn', { name: who.name })}>💬 {t('write')}</button>
+          ) : (
+            <form action={openChat}>
+              <input type="hidden" name="kind" value="direct" />
+              <input type="hidden" name="student_id" value={s.id} />
+              <input type="hidden" name="teacher_id" value={who.id} />
+              <button className="primary" type="submit">💬 {t('write')}</button>
+            </form>
+          )}
+        </div>
       </div>
+      {who.pending && <p className="muted" style={{ marginTop: 0 }}>{t('chatAfterSignIn', { name: who.name })}</p>}
+      <Flash error={sp.e} />
 
       <div className="cabinet">
         <section className="stack cabinet-main">
@@ -98,6 +113,12 @@ export default async function StudentFolder({
                       {h && <span className={`pill ${h.status === 'checked' ? 'ok' : 'warn'}`}>{h.status === 'checked' ? t('hwChecked') : t('hwToCheck')}</span>}
                     </span>
                   </div>
+                  {(l.note || l.homework_text) && (
+                    <div className="muted" style={{ fontSize: 14 }}>
+                      {l.note && <div>{t('lessonTopic')}: {l.note}</div>}
+                      {l.homework_text && <div>{t('hwTask')}: {l.homework_text}</div>}
+                    </div>
+                  )}
                   {h && (
                     <details>
                       <summary>{t('folderHomework')}</summary>
@@ -121,6 +142,24 @@ export default async function StudentFolder({
         </section>
 
         <aside className="stack cabinet-side">
+          <form action={saveStudentInfo} className="card stack info-form">
+            <h2 style={{ margin: 0 }}>{t('studentInfo')}</h2>
+            <input type="hidden" name="student_id" value={s.id} />
+            <input type="hidden" name="return_to" value={here} />
+            <label>{t('scheduleNote')}<input name="schedule_note" defaultValue={s.schedule_note ?? ''} placeholder={t('scheduleNoteHint')} /></label>
+            <label>{t('studentZoom')}<input type="url" name="zoom_url" defaultValue={s.zoom_url ?? ''} placeholder="https://zoom.us/j/…" /></label>
+            <label>
+              <span className="spread">GoodNotes {s.goodnotes_url && <a href={s.goodnotes_url} target="_blank" rel="noreferrer">{t('open')} ↗</a>}</span>
+              <input type="url" name="goodnotes_url" defaultValue={s.goodnotes_url ?? ''} />
+            </label>
+            <label>
+              <span className="spread">Quizlet {s.quizlet_url && <a href={s.quizlet_url} target="_blank" rel="noreferrer">{t('open')} ↗</a>}</span>
+              <input type="url" name="quizlet_url" defaultValue={s.quizlet_url ?? ''} />
+            </label>
+            <label>{t('teacherNotes')}<textarea name="notes" rows={7} defaultValue={notes} /></label>
+            <small className="muted">{t('teacherNotesHint')}</small>
+            <Submit className="primary small">{t('save')}</Submit>
+          </form>
           <div className="card">
             <h2 style={{ marginTop: 0 }}>{t('mePackage')}</h2>
             {p ? (

@@ -38,7 +38,17 @@ export default async function StudentPage({
   return (
     <Shell profile={profile} t={t} active="/school/students">
       <p><Link href="/school/students">← {t('navStudents')}</Link></p>
-      <h1>{s.full_name}</h1>
+      <div className="spread" style={{ alignItems: 'center' }}>
+        <h1 style={{ margin: '0 0 6px' }}>{s.full_name}</h1>
+        <div className="row">
+          <Link href={`/students/${id}/preview`} className="btn small">👁 {t('viewAsStudent')}</Link>
+          {profile.role !== 'manager' && (s.teacher_id || s.pending_teacher) && (
+            <Link className="btn small" href={`/teacher/students/${id}${s.pending_teacher ? `?as=${encodeURIComponent(INVITE + s.pending_teacher)}`
+              : s.teacher_id !== profile.id ? `?as=${s.teacher_id}` : ''}`}>📁 {t('folder')}</Link>
+          )}
+        </div>
+      </div>
+      {s.schedule_note && <p className="muted" style={{ marginTop: 0 }}>{s.schedule_note}</p>}
       <Flash error={sp.e === 'HAS_LESSONS' ? t('hasLessons') : sp.e} />
       <div className="grid" style={{ alignItems: 'start' }}>
         <section className="stack">

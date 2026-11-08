@@ -1,9 +1,11 @@
 import Link from 'next/link';
 import type { Locale, T } from '@/lib/i18n';
 import { fmtInTz, SCHOOL_TZ } from '@/lib/i18n';
-import type { LessonDb } from '@/lib/lessons';
+import { zoomOf, type LessonDb } from '@/lib/lessons';
+import { fmtMoney } from '@/lib/i18n';
 import { setLessonStatus } from '@/app/teacher/actions';
 import { setRecording, toggleAbsence } from '@/app/groups/actions';
+import Submit from '@/components/Submit';
 
 const OTHER = ['cancelled', 'force_majeure', 'rescheduled'];
 
@@ -29,8 +31,14 @@ export default function GroupLessonCard({
           {pl && <div className="muted">{t('lessonN', { n: pl.n })} · {pl.title}{pl.topic ? ` · ${pl.topic}` : ''}</div>}
         </div>
         <div className="row">
-          {lesson.zoom_url && <a className="btn small" href={lesson.zoom_url} target="_blank" rel="noreferrer">Zoom</a>}
-          {lesson.status !== 'scheduled' && <span className={`pill ${held ? 'ok' : ''}`}>{t(`st_${lesson.status}` as never)}</span>}
+          {zoomOf(lesson)
+            ? <a className="btn small" href={zoomOf(lesson)!} target="_blank" rel="noreferrer">🎥 Zoom</a>
+            : <span className="muted" style={{ fontSize: 13 }}>{t('noZoomGroup')}</span>}
+          {lesson.status !== 'scheduled' && (
+            <span className={`pill ${held ? 'ok' : ''}`}>
+              {t(`st_${lesson.status}` as never)}{held && lesson.lesson_pay?.amount ? ` · +${fmtMoney(Number(lesson.lesson_pay.amount))}` : ''}
+            </span>
+          )}
         </div>
       </div>
 
@@ -63,9 +71,9 @@ export default function GroupLessonCard({
                   <input type="hidden" name="student_id" value={m.student_id} />
                   <input type="hidden" name="absent" value={away ? '0' : '1'} />
                   <input type="hidden" name="return_to" value={returnTo} />
-                  <button type="submit" className={`chip ${away ? 'away' : ''}`} aria-pressed={!away}>
+                  <Submit className={`chip ${away ? 'away' : ''}`} ariaPressed={!away}>
                     {m.name}{away ? ` · ${t('absentMark')}` : ''}
-                  </button>
+                  </Submit>
                 </form>
               );
             })}
@@ -81,7 +89,7 @@ export default function GroupLessonCard({
             aria-label={t('recordingLink')} style={{ flex: '1 1 200px' }} />
           <input name="homework_url" type="url" defaultValue={lesson.homework_url ?? ''} placeholder={t('groupHomework')}
             aria-label={t('groupHomework')} title={t('groupHomeworkHint')} style={{ flex: '1 1 200px' }} />
-          <button className="small" type="submit">{t('save')}</button>
+          <Submit className="small">{t('save')}</Submit>
         </form>
         <div className="row">
           {lesson.status !== 'done' && (
@@ -89,7 +97,7 @@ export default function GroupLessonCard({
               <input type="hidden" name="id" value={lesson.id} />
               <input type="hidden" name="status" value="done" />
               <input type="hidden" name="return_to" value={returnTo} />
-              <button className="primary" type="submit">{t('markDone')}</button>
+              <Submit className="primary">{t('markDone')}</Submit>
             </form>
           )}
           <form action={setLessonStatus} className="row">
@@ -101,7 +109,7 @@ export default function GroupLessonCard({
                 <option key={s} value={s}>{t(`st_${s}` as never)}</option>
               ))}
             </select>
-            <button className="small" type="submit">OK</button>
+            <Submit className="small">OK</Submit>
           </form>
         </div>
       </div>

@@ -34,12 +34,24 @@ export default async function CoursePage({
   supabase: SupabaseClient; groupId: string; selected?: number; t: T; locale: Locale;
   basePath: string; fileBase: string; preview?: boolean;
 }) {
-  const [head, schedule, lessons, files] = await Promise.all([
+  const [head, schedule, lessons, files, convo] = await Promise.all([
     supabase.rpc('course_group', { gid: groupId }),
     supabase.rpc('course_schedule', { gid: groupId }),
     supabase.rpc('course_lessons', { gid: groupId }),
     supabase.rpc('course_files', { gid: groupId }),
+    supabase.from('conversations').select('id').eq('kind', 'group').eq('group_id', groupId).maybeSingle(),
   ]);
+  // the last messages of the group chat, as a peek on the course page
+  const cid = (convo.data as { id: string } | null)?.id ?? null;
+  const [peekRes, peopleRes] = cid
+    ? await Promise.all([
+      supabase.from('messages').select('id, sender_id, body, file_kind, created_at').eq('conversation_id', cid)
+        .order('created_at', { ascending: false }).limit(3),
+      supabase.rpc('chat_people', { cid }),
+    ])
+    : [{ data: [] }, { data: [] }];
+  const peek = ((peekRes.data ?? []) as { id: string; sender_id: string; body: string | null; file_kind: string | null }[]).reverse();
+  const nameOf = new Map(((peopleRes.data ?? []) as { id: string; full_name: string }[]).map((p) => [p.id, p.full_name.split(' ')[0]]));
   const g = ((head.data ?? []) as Head[])[0];
   if (!g) return <p className="muted">{t('nothingHere')}</p>;
   const scheduleRows = (schedule.data ?? []) as Slot[];
@@ -89,20 +101,20 @@ export default async function CoursePage({
             {g.teacher_name ? ` · ${t('c_with', { teacher: g.teacher_name })}` : ''}
             {items.length ? ` · ${t('c_doneOf', { n: doneCount, m: items.length })}` : ''}
           </p>
-          {!preview && (
-            <div className="row" style={{ marginTop: 10 }}>
-              <Link href={`/chat?g=${g.id}`} className="btn small">💬 {t('chatKindGroup')}</Link>
-              <Link href="/chat" className="btn small">{t('navChat')}</Link>
-            </div>
-          )}
+          <div className="row" style={{ marginTop: 10 }}>
+            {g.zoom_url
+              ? <a className="btn small" href={g.zoom_url} target="_blank" rel="noreferrer">🎥 {t('regularZoom')}</a>
+              : <span className="pill">{t('zoomComing')}</span>}
+            <Link href={`/chat?g=${g.id}`} className="btn small">💬 {t('chatKindGroup')}</Link>
+          </div>
         </div>
         {next?.slot ? (
           <section className="next-card" aria-label={t('c_next')}>
             <span className="next-when">{next.isToday ? t('c_today') : t('c_next')} · {fmtInTz(next.slot.starts_at, g.tz, locale)}</span>
             <strong className="next-title">{t('c_lesson', { n: next.pl.n })} · {next.pl.title}</strong>
-            {(next.slot.zoom_url ?? g.zoom_url) && (
-              <a className="next-zoom" href={(next.slot.zoom_url ?? g.zoom_url)!} target="_blank" rel="noreferrer">{t('c_join')}</a>
-            )}
+            {(next.slot.zoom_url ?? g.zoom_url)
+              ? <a className="next-zoom" href={(next.slot.zoom_url ?? g.zoom_url)!} target="_blank" rel="noreferrer">{t('c_join')}</a>
+              : <span style={{ opacity: .85, fontSize: 14 }}>{t('zoomComing')}</span>}
           </section>
         ) : items.length > 0 && doneCount === items.length ? (
           <section className="next-card"><strong className="next-title">{t('c_allDone')}</strong></section>
@@ -220,6 +232,17 @@ export default async function CoursePage({
         )}
 
         <aside className="stack course-aside">
+          <section className="card">
+            <h2 style={{ fontSize: 16, marginTop: 0 }}>💬 {t('groupChat')}</h2>
+            {peek.length === 0 && <p className="muted" style={{ margin: '0 0 8px', fontSize: 14 }}>{t('groupChatEmpty')}</p>}
+            {peek.map((m) => (
+              <div key={m.id} className="chat-peek">
+                <strong>{nameOf.get(m.sender_id) ?? ''}</strong>
+                <span>{m.body ?? (m.file_kind === 'audio' ? '🎤' : '📎')}</span>
+              </div>
+            ))}
+            <Link href={`/chat?g=${g.id}`} className="btn small" style={{ marginTop: 6 }}>{t('openChat')}</Link>
+          </section>
           {guides.length > 0 && (
             <section className="card">
               <h2 style={{ fontSize: 16 }}>{t('c_guides')}</h2>

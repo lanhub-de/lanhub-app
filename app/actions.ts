@@ -18,7 +18,12 @@ export async function saveSettings(formData: FormData) {
   const fullName = String(formData.get('full_name') ?? '').trim();
   const update: Record<string, string> = { locale };
   if (fullName) update.full_name = fullName;
-  const { error } = await supabase.from('profiles').update(update).eq('id', user.id);
+  let { error } = await supabase.from('profiles').update(update).eq('id', user.id);
+  // a teacher's own Zoom room, used for her lessons that have no other link
+  if (!error && formData.has('zoom_url')) {
+    const zoom = String(formData.get('zoom_url') ?? '').trim() || null;
+    ({ error } = await supabase.from('teacher_settings').upsert({ teacher_id: user.id, zoom_url: zoom }, { onConflict: 'teacher_id' }));
+  }
   revalidatePath('/', 'layout');
   redirect(error ? `/settings?e=${encodeURIComponent(error.message)}` : '/settings?ok=1');
 }

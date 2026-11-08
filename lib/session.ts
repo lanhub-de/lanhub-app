@@ -17,12 +17,13 @@ export type Profile = {
 // without a profile (not invited) goes to the no-access page.
 export async function requireProfile(allowed?: Role[]) {
   const supabase = await supabaseServer();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect('/login');
+  const { data } = await supabase.auth.getClaims();
+  const uid = data?.claims?.sub;
+  if (!uid) redirect('/login');
   const { data: profile } = await supabase
     .from('profiles')
     .select('id, full_name, email, role, locale, viewer_code')
-    .eq('id', user.id)
+    .eq('id', uid)
     .maybeSingle<Profile>();
   if (!profile) redirect('/no-access');
   if (allowed && !allowed.includes(profile.role)) redirect('/');

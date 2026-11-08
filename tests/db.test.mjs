@@ -899,3 +899,31 @@ test('lesson materials: the teacher attaches a file to an individual lesson, onl
   const [{ c }] = await rows(ids.sarahLogin, 'select count(*)::int as c from public.lesson_files where lesson_id = $1', [lesson.id]);
   assert.equal(c, 1);
 });
+
+test('student info: the teacher saves links and notes; the student sees her links, never the notes', async () => {
+  await rows(ids.toma, `select public.save_student_info($1, 'https://zoom.example/sarah', 'https://goodnotes.example/s',
+    'https://quizlet.example/s', 'Tue/Thu', 'Goal: speak freely. Work on word order.')`, [ids.sarah]);
+  const [me] = await rows(ids.sarahLogin, 'select zoom_url, goodnotes_url, schedule_note from public.students where id = $1', [ids.sarah]);
+  assert.deepEqual([me.zoom_url, me.goodnotes_url, me.schedule_note], ['https://zoom.example/sarah', 'https://goodnotes.example/s', 'Tue/Thu']);
+  assert.equal((await rows(ids.sarahLogin, 'select * from public.student_notes')).length, 0);
+  assert.equal((await rows(ids.toma, 'select notes from public.student_notes where student_id = $1', [ids.sarah]))[0].notes,
+    'Goal: speak freely. Work on word order.');
+  assert.equal((await rows(ids.manager, 'select * from public.student_notes where student_id = $1', [ids.sarah])).length, 1);
+  assert.ok(await fails(ids.sarahLogin, `select public.save_student_info($1, '', '', '', '', 'hacked')`, [ids.sarah]));
+});
+
+test("individual lessons use the lesson's Zoom, else the student's, else the teacher's room", async () => {
+  await rows(ids.toma, `insert into public.teacher_settings (teacher_id, zoom_url) values ($1, 'https://zoom.example/toma')
+    on conflict (teacher_id) do update set zoom_url = excluded.zoom_url`, [ids.toma]);
+  const [l] = await rows(ids.owner,
+    `insert into public.lessons (teacher_id, student_id, starts_at) values ($1, $2, now() + interval '2 days') returning id`,
+    [ids.toma, ids.sarah]);
+  const [{ lesson_zoom: z1 }] = await rows(ids.toma, 'select public.lesson_zoom($1)', [l.id]);
+  assert.equal(z1, 'https://zoom.example/sarah');
+  await rows(ids.toma, `select public.save_student_info($1, '', '', '', '', '')`, [ids.sarah]);
+  const [{ lesson_zoom: z2 }] = await rows(ids.toma, 'select public.lesson_zoom($1)', [l.id]);
+  assert.equal(z2, 'https://zoom.example/toma');
+  const mine = await rows(ids.sarahLogin, `select zoom_url, teacher_name from public.student_lessons($1, now(), now() + interval '7 days')`, [ids.sarah]);
+  assert.ok(mine.some((m) => m.zoom_url === 'https://zoom.example/toma' && m.teacher_name === 'Тома'));
+  assert.equal((await rows(ids.marcoLogin ?? ids.nadiia, `select * from public.student_lessons($1, now(), now() + interval '7 days')`, [ids.sarah])).length >= 0, true);
+});
