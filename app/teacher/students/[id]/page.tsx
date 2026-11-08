@@ -27,7 +27,7 @@ export default async function StudentFolder({
   const q = asParam(who);
 
   const { data: s } = await supabase.from('students')
-    .select('id, full_name, level, market, zoom_url, goodnotes_url, quizlet_url, schedule_note, email, locale, invited_at, profile_id').eq('id', id).maybeSingle();
+    .select('id, full_name, level, market, zoom_url, goodnotes_url, quizlet_url, schedule_note, email, locale, invited_at, profile_id, contact').eq('id', id).maybeSingle();
   if (!s) notFound();
   const here = `/teacher/students/${id}${q ? `?${q}` : ''}`;
   const from = new Date(Date.now() - 120 * 864e5).toISOString();

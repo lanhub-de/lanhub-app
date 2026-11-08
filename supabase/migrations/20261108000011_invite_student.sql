@@ -47,3 +47,27 @@ end $$;
 
 revoke execute on function public.set_student_email(uuid, text, text), public.student_invite_sent(uuid) from public, anon;
 grant execute on function public.set_student_email(uuid, text, text), public.student_invite_sent(uuid) to authenticated;
+
+-- The student's real name (first and last) instead of an Instagram nickname.
+-- The nickname stays in contact ("Instagram @…"). If she has already signed
+-- in, her profile gets the new name too.
+create or replace function public.set_student_name(sid uuid, p_first text, p_last text)
+returns void
+language plpgsql security definer set search_path = public as $$
+declare
+  n text := trim(regexp_replace(concat_ws(' ', nullif(trim(p_first), ''), nullif(trim(p_last), '')), '\s+', ' ', 'g'));
+  pid uuid;
+begin
+  if not (public.has_role('owner', 'head_teacher', 'manager') or public.teaches_student(sid)) then
+    raise exception 'You do not teach this student';
+  end if;
+  if n = '' then return; end if;
+  if char_length(n) > 120 then raise exception 'The name is too long'; end if;
+  update public.students set full_name = n where id = sid returning profile_id into pid;
+  if pid is not null then
+    update public.profiles set full_name = n where id = pid;
+  end if;
+end $$;
+
+revoke execute on function public.set_student_name(uuid, text, text) from public, anon;
+grant execute on function public.set_student_name(uuid, text, text) to authenticated;

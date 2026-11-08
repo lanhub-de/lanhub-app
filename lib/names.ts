@@ -27,3 +27,14 @@ export function chatWith(name: string, locale: Locale) {
   const i = instrumental(name);
   return i ? `Чат з ${i}` : `Чат: ${name.split(' ')[0]}`;
 }
+
+// A student card's name as first / last for the forms, and her Instagram
+// nickname (from contact) if the card still carries it as the name.
+export function splitStudentName(fullName: string, contact?: string | null) {
+  const handle = contact?.match(/@([\w.]+)/)?.[1] ?? null;
+  const looksLikeNick = (handle && fullName.toLowerCase().startsWith(handle.toLowerCase()))
+    || /[_\d.@]/.test(fullName) || !/\s/.test(fullName.trim()) && /[a-z][A-Z]|^[a-z]/.test(fullName.trim());
+  if (looksLikeNick) return { first: '', last: '', handle: handle ?? fullName, nick: true };
+  const [first, ...rest] = fullName.trim().split(/\s+/);
+  return { first: first ?? '', last: rest.join(' '), handle, nick: false };
+}

@@ -155,28 +155,58 @@ async function inviteOne(supabase: Awaited<ReturnType<typeof supabaseServer>>, s
   return null;
 }
 
+// The real name first (if given), so the invitation and her profile carry it.
+async function renameOne(supabase: Awaited<ReturnType<typeof supabaseServer>>, sid: string, first: string, last: string) {
+  if (!first.trim() && !last.trim()) return null;
+  const { error } = await supabase.rpc('set_student_name', { sid, p_first: first, p_last: last });
+  return error?.message ?? null;
+}
+
 export async function inviteStudent(formData: FormData) {
   const sid = String(formData.get('student_id'));
   const returnTo = String(formData.get('return_to') || '/teacher');
   const supabase = await supabaseServer();
-  const err = await inviteOne(supabase, sid, String(formData.get('email') ?? ''), String(formData.get('locale') ?? 'en'));
+  const err = await renameOne(supabase, sid, String(formData.get('first_name') ?? ''), String(formData.get('last_name') ?? ''))
+    ?? await inviteOne(supabase, sid, String(formData.get('email') ?? ''), String(formData.get('locale') ?? 'en'));
   back(returnTo, err ?? undefined);
 }
 
-// The whole group at once: every row with an email gets invited.
+// The whole group at once: names are saved for every row that has them, and
+// every row with an email gets invited (one already invited only when ticked).
+// A card that still carries a nickname needs a first name before the invite.
 export async function inviteGroup(formData: FormData) {
   const returnTo = String(formData.get('return_to') || '/teacher');
   const supabase = await supabaseServer();
   const ids = formData.getAll('student_id').map(String);
   const errors: string[] = [];
   let sent = 0;
+  let named = 0;
   for (const sid of ids) {
+    const label = String(formData.get(`name_${sid}`) ?? '');
+    const first = String(formData.get(`first_${sid}`) ?? '').trim();
+    const last = String(formData.get(`last_${sid}`) ?? '').trim();
+    const renamed = `${first} ${last}`.trim();
+    if (renamed && renamed !== label) {
+      const err = await renameOne(supabase, sid, first, last);
+      if (err) { errors.push(`${label}: ${err}`); continue; }
+      named += 1;
+    }
     const email = String(formData.get(`email_${sid}`) ?? '').trim();
-    // already invited: only again when ticked
     if (!email || (formData.get(`was_${sid}`) && !formData.get(`again_${sid}`))) continue;
+    if (formData.get(`nick_${sid}`) && !first) { errors.push(`${label}: ${String(formData.get('need_name') ?? 'first name needed')}`); continue; }
     const err = await inviteOne(supabase, sid, email, String(formData.get(`locale_${sid}`) ?? 'en'));
-    if (err) errors.push(`${String(formData.get(`name_${sid}`) ?? '')}: ${err}`); else sent += 1;
+    if (err) errors.push(`${renamed || label}: ${err}`); else sent += 1;
   }
   revalidatePath(returnTo.split('?')[0]);
-  redirect(`${returnTo}${returnTo.includes('?') ? '&' : '?'}${errors.length ? `e=${encodeURIComponent(errors.join('; '))}` : `sent=${sent}`}`);
+  const q = errors.length ? `e=${encodeURIComponent(errors.join('; '))}&` : '';
+  redirect(`${returnTo}${returnTo.includes('?') ? '&' : '?'}${q}sent=${sent}&named=${named}`);
+}
+
+// Only the name (no invitation), from the student's card.
+export async function renameStudent(formData: FormData) {
+  const sid = String(formData.get('student_id'));
+  const returnTo = String(formData.get('return_to') || '/teacher');
+  const supabase = await supabaseServer();
+  const err = await renameOne(supabase, sid, String(formData.get('first_name') ?? ''), String(formData.get('last_name') ?? ''));
+  back(returnTo, err ?? undefined);
 }

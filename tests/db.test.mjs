@@ -951,3 +951,16 @@ test("inviting a student: her teacher or the school puts her email on the card; 
   assert.ok(await fails(ids.stranger_teacher, `select * from public.set_student_email($1, 'x@mail.test', 'uk')`, [ids.sarah]));
   assert.ok(await fails(ids.sarahLogin, 'select public.student_invite_sent($1)', [ids.sarah]));
 });
+
+test("a student's real name replaces the nickname on her card and her profile; another teacher cannot rename", async () => {
+  await rows(ids.toma, `select public.set_student_name($1, ' Sarah ', ' Miller ')`, [ids.sarah]);
+  const [card] = await rows(ids.owner, 'select full_name, profile_id from public.students where id = $1', [ids.sarah]);
+  assert.equal(card.full_name, 'Sarah Miller');
+  if (card.profile_id) {
+    const [p] = await rows(ids.owner, 'select full_name from public.profiles where id = $1', [card.profile_id]);
+    assert.equal(p.full_name, 'Sarah Miller');
+  }
+  await rows(ids.toma, `select public.set_student_name($1, '', '')`, [ids.sarah]);
+  assert.equal((await rows(ids.owner, 'select full_name from public.students where id = $1', [ids.sarah]))[0].full_name, 'Sarah Miller');
+  assert.ok(await fails(ids.stranger_teacher, `select public.set_student_name($1, 'X', 'Y')`, [ids.sarah]));
+});

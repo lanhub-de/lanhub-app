@@ -4,6 +4,7 @@ import Shell, { Flash } from '@/components/Shell';
 import { requireProfile } from '@/lib/session';
 import { fmtInTz } from '@/lib/i18n';
 import { INVITE, pendingTeachers } from '@/lib/invites';
+import { splitStudentName } from '@/lib/names';
 import { addMember, archiveGroup, continueGroup, removeMember, updateGroup } from '../actions';
 import GroupLessonCard from '@/components/GroupLessonCard';
 import { LESSON_SELECT, type LessonDb } from '@/lib/lessons';
@@ -30,8 +31,8 @@ export default async function GroupPage({ params, searchParams }: {
     g.program_id
       ? supabase.from('programs').select('id, title, next_program_id').eq('id', g.program_id).maybeSingle()
       : Promise.resolve({ data: null }),
-    supabase.from('group_members').select('student_id, students(full_name, level, market)').eq('group_id', id)
-      .returns<{ student_id: string; students: { full_name: string; level: string | null; market: string } | null }[]>(),
+    supabase.from('group_members').select('student_id, students(full_name, level, market, contact)').eq('group_id', id)
+      .returns<{ student_id: string; students: { full_name: string; level: string | null; market: string; contact: string | null } | null }[]>(),
     supabase.from('lessons').select('id, starts_at, status, recording_url, teacher_id, program_lessons(n, title, topic)')
       .eq('group_id', id).order('starts_at').returns<LessonRowDb[]>(),
     supabase.from('profiles').select('id, full_name, role, active'),
@@ -151,14 +152,20 @@ export default async function GroupPage({ params, searchParams }: {
               <span className="muted">{(members.data ?? []).length}{g.capacity ? ` / ${g.capacity}` : ''}</span>
             </div>
             {(members.data ?? []).length > 0 && (
-              <Link href={`/groups/${g.id}/invite`} className="btn small" style={{ marginBottom: 6 }}>✉️ {t('inviteGroupBtn')}</Link>
+              <Link href={`/groups/${g.id}/invite`} className="btn small" style={{ marginBottom: 6 }}>✏️ {t('inviteGroupBtn')}</Link>
             )}
             {(members.data ?? []).length === 0 && <p className="muted">{t('nothingHere')}</p>}
             {(members.data ?? []).map((m) => (
               <div key={m.student_id} className="spread" style={{ padding: '8px 0', borderBottom: '1px solid var(--sand)' }}>
-                {staff
-                  ? <Link href={`/school/students/${m.student_id}`}>{m.students?.full_name}</Link>
-                  : <span>{m.students?.full_name}</span>}
+                <span>
+                  {staff
+                    ? <Link href={`/school/students/${m.student_id}`}>{m.students?.full_name}</Link>
+                    : <span>{m.students?.full_name}</span>}
+                  {(() => {
+                    const n = splitStudentName(m.students?.full_name ?? '', m.students?.contact);
+                    return n.handle && !n.nick ? <span className="muted" style={{ fontSize: 13 }}> · @{n.handle}</span> : null;
+                  })()}
+                </span>
                 <span className="row">
                   <span className="muted" style={{ fontSize: 13 }}>{m.students?.level ?? ''}</span>
                   {staff && (
