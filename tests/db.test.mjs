@@ -927,3 +927,14 @@ test("individual lessons use the lesson's Zoom, else the student's, else the tea
   assert.ok(mine.some((m) => m.zoom_url === 'https://zoom.example/toma' && m.teacher_name === 'Тома'));
   assert.equal((await rows(ids.marcoLogin ?? ids.nadiia, `select * from public.student_lessons($1, now(), now() + interval '7 days')`, [ids.sarah])).length >= 0, true);
 });
+
+test('the head teacher sees invited teachers (to open their cabinets), a teacher does not, and nobody but the owner and the teacher sees pay', async () => {
+  await rows(ids.owner, `insert into public.invites (email, full_name, role) values ('soon@lanhub.test', 'Олена', 'teacher')
+    on conflict (email) do nothing`);
+  const forAgata = await rows(ids.agata, 'select email, full_name from public.pending_teacher_list()');
+  assert.ok(forAgata.some((r) => r.email === 'soon@lanhub.test' && r.full_name === 'Олена'));
+  assert.equal((await rows(ids.toma, 'select * from public.pending_teacher_list()')).length, 0);
+  assert.equal((await rows(ids.manager, 'select * from public.pending_teacher_list()')).length, 0);
+  assert.equal((await rows(ids.agata, 'select * from public.monthly_payouts where teacher_id = $1', [ids.toma])).length, 0);
+  assert.equal((await rows(ids.agata, 'select * from public.teacher_rates where teacher_id = $1', [ids.toma])).length, 0);
+});

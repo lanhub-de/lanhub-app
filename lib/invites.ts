@@ -4,11 +4,10 @@ export type PendingTeacher = { email: string; full_name: string };
 
 // Teachers who were invited and have not signed in yet. Groups and students
 // can already be given to them (the form value is "invite:<email>"); they
-// move to the teacher on her first sign-in. Only the owner can read invites,
-// so for everyone else the list is empty.
+// move to the teacher on her first sign-in. The owner and the head teacher
+// get the list; for everyone else it is empty.
 export async function pendingTeachers(supabase: SupabaseClient): Promise<PendingTeacher[]> {
-  const { data } = await supabase.from('invites').select('email, full_name')
-    .is('accepted_at', null).in('role', ['teacher', 'head_teacher']).order('full_name');
+  const { data } = await supabase.rpc('pending_teacher_list');
   return (data ?? []) as PendingTeacher[];
 }
 

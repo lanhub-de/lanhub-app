@@ -446,3 +446,11 @@ details.s-prev > summary { display: flex; justify-content: space-between; gap: 1
 .schedule-form label { font-size: 13px; }
 .schedule-two { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 @media (max-width: 640px) { .schedule-form { left: 0; right: auto; } }
+
+/* recordings and materials in a viewed cabinet */
+.review-list { display: flex; flex-direction: column; margin-top: 8px; }
+.review-row { display: grid; grid-template-columns: 150px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--sand); font-size: 14px; }
+.review-row:last-child { border-bottom: 0; }
+.review-when { color: var(--muted); font-variant-numeric: tabular-nums; }
+.review-files { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+@media (max-width: 640px) { .review-row { grid-template-columns: minmax(0, 1fr) auto; } .review-when { grid-column: 1 / -1; margin-bottom: -6px; } }

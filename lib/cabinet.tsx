@@ -40,7 +40,7 @@ export async function CabinetSwitch({
   if (!(me.role === 'owner' || me.role === 'head_teacher')) return null;
   const [{ data: teachers }, invited] = await Promise.all([
     supabase.from('profiles').select('id, full_name').in('role', ['teacher', 'head_teacher']).eq('active', true).order('full_name'),
-    me.role === 'owner' ? pendingTeachers(supabase) : Promise.resolve([]),
+    pendingTeachers(supabase),
   ]);
   return (
     <div className="cabinet-switch">

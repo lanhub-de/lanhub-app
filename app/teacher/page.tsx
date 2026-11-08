@@ -4,7 +4,7 @@ import GroupLessonCard, { type Member } from '@/components/GroupLessonCard';
 import TodayLessonCard, { type FileRef } from '@/components/TodayLessonCard';
 import ScheduleLesson from '@/components/ScheduleLesson';
 import { requireProfile, TEACHING } from '@/lib/session';
-import { currentMonthStart, fmtDate, fmtMoney, fmtMonth, kyivLocalToIso, SCHOOL_TZ } from '@/lib/i18n';
+import { currentMonthStart, fmtDate, fmtDateTime, fmtMoney, fmtMonth, kyivLocalToIso, SCHOOL_TZ } from '@/lib/i18n';
 import { openChat } from '@/app/chat/actions';
 import { LESSON_SELECT as select, type LessonDb } from '@/lib/lessons';
 import { asParam, CabinetSwitch, onlyTheirs, whoseCabinet } from '@/lib/cabinet';
@@ -56,6 +56,18 @@ export default async function TeacherPage({ searchParams }: { searchParams: Prom
       : supabase.from('teacher_settings').select('zoom_url').eq('teacher_id', who.id).maybeSingle(),
   ]);
   const teacherZoom = (settings.data as { zoom_url: string | null } | null)?.zoom_url ?? null;
+  // a teacher's pay: her own, and the owner's; the head teacher sees cabinets but not pay
+  const showPay = !who.viewing || profile.role === 'owner';
+  // for the school and the head teacher looking at a cabinet: recordings and
+  // materials of the last two months, to see how lessons go
+  type Review = { id: string; starts_at: string; status: string; recording_url: string | null; note: string | null; homework_text: string | null;
+    group_id: string | null; students: { full_name: string } | null; groups: { name: string } | null; program_lessons: { n: number; title: string } | null };
+  const review = who.viewing
+    ? ((await theirs(supabase.from('lessons')
+        .select('id, starts_at, status, recording_url, note, homework_text, group_id, students!lessons_student_id_fkey(full_name), groups!lessons_group_id_fkey(name), program_lessons(n, title)'))
+        .in('status', ['done', 'no_show', 'late_cancel']).gte('starts_at', new Date(Date.now() - 60 * 864e5).toISOString())
+        .order('starts_at', { ascending: false }).limit(40).returns<Review[]>()).data ?? [])
+    : [];
   // unread chats only make sense for your own cabinet
   const chats = who.viewing ? [] : (((await supabase.rpc('my_chats')).data ?? []) as Chat[]).filter((c) => c.mine && c.unread > 0);
 
@@ -64,7 +76,7 @@ export default async function TeacherPage({ searchParams }: { searchParams: Prom
   const all = [...(unmarked.data ?? []), ...(ahead.data ?? []), ...(recent.data ?? [])];
   const groupIds = [...new Set(all.map((l) => l.group_id).filter(Boolean))] as string[];
   const groupLessonIds = all.filter((l) => l.group_id).map((l) => l.id);
-  const soloIds = all.filter((l) => !l.group_id).map((l) => l.id);
+  const soloIds = [...new Set([...all.filter((l) => !l.group_id).map((l) => l.id), ...review.filter((l) => !l.group_id).map((l) => l.id)])];
   const [memberRows, absenceRows, attached, libraryFiles] = await Promise.all([
     groupIds.length
       ? supabase.from('group_members').select('group_id, student_id, students(full_name)').in('group_id', groupIds)
@@ -153,7 +165,7 @@ export default async function TeacherPage({ searchParams }: { searchParams: Prom
 
           <div className="card today-stats">
             <span>{t('markedToday')}: <strong>{markedToday}</strong></span>
-            {!who.pending && <span>{t('addedThisMonth')}: <strong>{fmtMoney(payRow?.total ?? 0)}</strong></span>}
+            {!who.pending && showPay && <span>{t('addedThisMonth')}: <strong>{fmtMoney(payRow?.total ?? 0)}</strong></span>}
           </div>
 
           {later.length > 0 && (
@@ -199,6 +211,44 @@ export default async function TeacherPage({ searchParams }: { searchParams: Prom
               <div className="stack" style={{ marginTop: 10 }}>{recent.data!.map((l) => card(l, true))}</div>
             </details>
           )}
+
+          {who.viewing && (
+            <div className="card">
+              <div className="spread" style={{ alignItems: 'baseline' }}>
+                <h2 style={{ margin: 0 }}>{t('reviewTitle')}</h2>
+                <span className="muted" style={{ fontSize: 13 }}>{t('recordingsHint', { n: review.filter((l) => l.recording_url).length, m: review.length })}</span>
+              </div>
+              {review.length === 0 && <p className="muted" style={{ margin: '10px 0 0' }}>{t('reviewEmpty')}</p>}
+              <div className="review-list">
+                {review.map((l) => {
+                  const files = materialsOf(l.id);
+                  const whoName = l.students?.full_name ?? l.groups?.name ?? '';
+                  const topic = l.program_lessons ? `${t('c_lesson', { n: l.program_lessons.n })} · ${l.program_lessons.title}` : l.note;
+                  return (
+                    <div key={l.id} className="review-row">
+                      <span className="review-when">{fmtDateTime(l.starts_at, profile.locale)}</span>
+                      <span className="review-what">
+                        <strong>{whoName}</strong>
+                        {topic && <span className="muted"> · {topic}</span>}
+                        {l.status !== 'done' && <span className="pill" style={{ marginLeft: 6 }}>{t(`st_${l.status}` as never)}</span>}
+                        {(files.length > 0 || l.group_id) && (
+                          <span className="review-files">
+                            {files.map((f) => <Link key={f.id} href={`/library/${f.id}`} className="file-chip" style={{ paddingRight: 10 }}>📄 {f.title}</Link>)}
+                            {l.group_id && l.program_lessons && (
+                              <Link href={`/groups/${l.group_id}?l=${l.program_lessons.n}`} className="file-chip" style={{ paddingRight: 10 }}>📘 {t('lessonMaterials')}</Link>
+                            )}
+                          </span>
+                        )}
+                      </span>
+                      {l.recording_url
+                        ? <a href={l.recording_url} target="_blank" rel="noreferrer" className="btn small">▶ {t('c_watch')}</a>
+                        : <span className="muted" style={{ fontSize: 13 }}>{t('noRecording')}</span>}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </section>
 
         <aside className="stack cabinet-side">
@@ -232,7 +282,7 @@ export default async function TeacherPage({ searchParams }: { searchParams: Prom
             <span className="hw-count">{homeworkCount}</span>
           </Link>
 
-          <div className="card">
+          {showPay && <div className="card">
             <h2 style={{ marginTop: 0 }}>{t('myPay', { month: fmtMonth(month, profile.locale) })}</h2>
             {who.pending ? (
               <p className="muted" style={{ margin: 0 }}>{t('payAfterSignIn', { name: who.name })}</p>
@@ -255,7 +305,7 @@ export default async function TeacherPage({ searchParams }: { searchParams: Prom
                 <p className="muted" style={{ fontSize: 13, margin: '10px 0 0' }}>{t('payHint')}</p>
               </>
             )}
-          </div>
+          </div>}
 
           {(groups.data ?? []).length > 0 && (
             <div className="card">

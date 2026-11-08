@@ -5,6 +5,7 @@ import { currentMonthStart, fmtDate, fmtDateTime, fmtMoney, fmtMonth } from '@/l
 import { LESSON_SELECT, type LessonDb } from '@/lib/lessons';
 import { rateSummary, type RateRow } from '@/lib/rates';
 import { syncAllowances } from '@/lib/allowances';
+import { INVITE, pendingTeachers } from '@/lib/invites';
 
 type PayoutRow = { teacher_id: string; teacher_name: string; total: number | string; lessons_count: number; review_status: string; currency: string };
 type Person = { id: string; full_name: string; role: string; active: boolean };
@@ -16,7 +17,7 @@ export default async function SchoolOverview() {
   const dayAgo = new Date(Date.now() - 864e5).toISOString();
   if (isOwner) await syncAllowances(supabase, month);
 
-  const [notRenewed, unmarked, payouts, people, rates] = await Promise.all([
+  const [notRenewed, unmarked, payouts, people, rates, invited] = await Promise.all([
     supabase.from('students_not_renewed').select('student_id, full_name, level, teacher_id, last_valid_until')
       .order('last_valid_until', { ascending: false }),
     supabase.from('lessons').select(LESSON_SELECT).eq('status', 'scheduled').lt('starts_at', dayAgo)
@@ -28,6 +29,7 @@ export default async function SchoolOverview() {
     isOwner
       ? supabase.from('teacher_rates').select('teacher_id, kind, band, market, package_lessons, student_id, group_id, amount, valid_from').returns<RateRow[]>()
       : Promise.resolve({ data: null as RateRow[] | null }),
+    isOwner ? Promise.resolve([]) : pendingTeachers(supabase),
   ]);
 
   const nameOf = new Map((people.data ?? []).map((p) => [p.id, p.full_name]));
@@ -118,6 +120,26 @@ export default async function SchoolOverview() {
                 </table>
               </div>
             )}
+          </section>
+        )}
+
+        {profile.role === 'head_teacher' && (
+          <section className="card" aria-labelledby="cab-h">
+            <h2 id="cab-h" style={{ marginBottom: 4 }}>{t('teacherCabinets')}</h2>
+            <p className="muted" style={{ marginTop: 0, fontSize: 14 }}>{t('teacherCabinetsHint')}</p>
+            <div className="stack" style={{ gap: 8 }}>
+              {teachers.filter(({ person }) => person.id !== profile.id).map(({ person }) => (
+                <Link key={person.id} href={`/teacher?as=${person.id}`} className="spread list-row">
+                  <span style={{ fontWeight: 600 }}>{person.full_name}</span><span className="open-link">{t('open')}</span>
+                </Link>
+              ))}
+              {invited.map((i) => (
+                <Link key={i.email} href={`/teacher?as=${encodeURIComponent(`${INVITE}${i.email}`)}`} className="spread list-row">
+                  <span style={{ fontWeight: 600 }}>{i.full_name} <span className="muted" style={{ fontWeight: 400 }}>· {t('pending')}</span></span>
+                  <span className="open-link">{t('open')}</span>
+                </Link>
+              ))}
+            </div>
           </section>
         )}
 
