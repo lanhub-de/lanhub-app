@@ -1,0 +1,183 @@
+import Link from 'next/link';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import RichText from '@/components/RichText';
+import type { Locale, T } from '@/lib/i18n';
+import { fmtDayInTz, fmtInTz } from '@/lib/i18n';
+
+type Head = {
+  id: string; name: string; level: string | null; days: number[] | null; start_time: string | null; tz: string;
+  zoom_url: string | null; program_id: string | null; program_title: string | null; program_level: string | null;
+  teacher_name: string | null;
+};
+type Slot = {
+  id: string; starts_at: string; duration_min: number; status: string; zoom_url: string | null;
+  recording_url: string | null; homework_url: string | null; program_lesson_id: string | null;
+};
+type PL = {
+  id: string; n: number; title: string; topic: string | null; goal: string | null; rule: string | null;
+  prepare: string | null; after_note: string | null; connected: string | null; homework_url: string | null;
+  vocab_url: string | null; slides_url: string | null;
+};
+type CourseFile = { file_id: string; title: string; program_lesson_id: string | null };
+
+const HELD = ['done', 'no_show', 'late_cancel'];
+
+// The group's course page, as its students see it: the replacement for the
+// Notion course hub. Everything comes through the course_* database functions,
+// which leave out teacher notes, pay and other students.
+export default async function CoursePage({
+  supabase, groupId, selected, t, locale, basePath, fileBase, preview,
+}: {
+  supabase: SupabaseClient; groupId: string; selected?: number; t: T; locale: Locale;
+  basePath: string; fileBase: string; preview?: boolean;
+}) {
+  const [head, schedule, lessons, files] = await Promise.all([
+    supabase.rpc('course_group', { gid: groupId }),
+    supabase.rpc('course_schedule', { gid: groupId }),
+    supabase.rpc('course_lessons', { gid: groupId }),
+    supabase.rpc('course_files', { gid: groupId }),
+  ]);
+  const g = ((head.data ?? []) as Head[])[0];
+  if (!g) return <p className="muted">{t('nothingHere')}</p>;
+  const scheduleRows = (schedule.data ?? []) as Slot[];
+  const lessonRows = (lessons.data ?? []) as PL[];
+  const fileRows = (files.data ?? []) as CourseFile[];
+
+  const now = Date.now();
+  const dayKey = (d: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: g.tz, dateStyle: 'short' }).format(d);
+  const today = dayKey(new Date());
+  const slotByLesson = new Map(scheduleRows.map((s) => [s.program_lesson_id, s]));
+  const items = lessonRows.map((pl) => {
+    const slot = slotByLesson.get(pl.id) ?? null;
+    const held = slot ? HELD.includes(slot.status) : false;
+    const isToday = slot ? dayKey(new Date(slot.starts_at)) === today : false;
+    const off = slot ? !HELD.includes(slot.status) && slot.status !== 'scheduled' : false;
+    return { pl, slot, held, isToday, off };
+  });
+  const doneCount = items.filter((i) => i.held).length;
+  const next = items.find((i) => i.slot && !i.held && !i.off && new Date(i.slot.starts_at).getTime() > now - 3 * 3600e3);
+  const current = items.find((i) => i.pl.n === selected) ?? next ?? items[items.length - 1];
+  const days = (g.days ?? []).map((d) => t(`wd${d}` as never)).join(' & ');
+  const guides = fileRows.filter((f) => !f.program_lesson_id);
+  const badge = (i: (typeof items)[number]) => i.held ? t('c_done')
+    : i.off && i.slot ? t(`st_${i.slot.status}` as never)
+      : i.isToday ? t('c_today')
+        : i.slot ? fmtDayInTz(i.slot.starts_at, g.tz, locale) : '';
+
+  return (
+    <div className="stack" style={{ gap: 22 }}>
+      {preview && <div className="flash">{t('c_preview')}</div>}
+
+      <div className="course-top">
+        <div style={{ flex: '1 1 340px' }}>
+          {g.program_level && <div className="eyebrow">{g.program_level}</div>}
+          <h1 style={{ margin: '6px 0 4px' }}>{g.program_title ?? g.name}</h1>
+          <p className="muted" style={{ margin: 0 }}>
+            {days}{g.start_time ? ` · ${g.start_time.slice(0, 5)} (${t('groupTime')})` : ''}
+            {g.teacher_name ? ` · ${t('c_with', { teacher: g.teacher_name })}` : ''}
+            {items.length ? ` · ${t('c_doneOf', { n: doneCount, m: items.length })}` : ''}
+          </p>
+        </div>
+        {next?.slot ? (
+          <section className="next-card" aria-label={t('c_next')}>
+            <span className="next-when">{next.isToday ? t('c_today') : t('c_next')} · {fmtInTz(next.slot.starts_at, g.tz, locale)}</span>
+            <strong className="next-title">{t('c_lesson', { n: next.pl.n })} · {next.pl.title}</strong>
+            {(next.slot.zoom_url ?? g.zoom_url) && (
+              <a className="next-zoom" href={(next.slot.zoom_url ?? g.zoom_url)!} target="_blank" rel="noreferrer">{t('c_join')}</a>
+            )}
+          </section>
+        ) : items.length > 0 && doneCount === items.length ? (
+          <section className="next-card"><strong className="next-title">{t('c_allDone')}</strong></section>
+        ) : null}
+      </div>
+
+      <div className="course">
+        <nav className="card course-list" aria-label={t('c_lessons')}>
+          <h2 style={{ margin: '4px 8px 8px', fontSize: 16 }}>{t('c_lessons')}</h2>
+          {items.map((i) => (
+            <Link key={i.pl.id} href={`${basePath}?l=${i.pl.n}`} className={`course-item ${current?.pl.id === i.pl.id ? 'active' : ''}`}
+              aria-current={current?.pl.id === i.pl.id ? 'page' : undefined}>
+              <span className="num">{i.pl.n}</span>
+              <span className="ttl">{i.pl.title}</span>
+              <span className={`tag ${i.held ? 'ok' : i.isToday ? 'today' : ''}`}>{badge(i)}</span>
+            </Link>
+          ))}
+        </nav>
+
+        {current && (
+          <article className="card course-detail">
+            <div>
+              <div className="eyebrow">{t('c_lesson', { n: current.pl.n })}{current.pl.topic ? ` · ${current.pl.topic}` : ''}</div>
+              <h2 style={{ fontSize: 24, margin: '4px 0 0' }}>{current.pl.title}</h2>
+              {current.slot && <p className="muted" style={{ margin: '4px 0 0' }}>{fmtInTz(current.slot.starts_at, g.tz, locale)}</p>}
+            </div>
+            {current.pl.goal && <p className="goal" style={{ margin: 0 }}>{current.pl.goal}</p>}
+            {current.pl.rule && (
+              <section>
+                <h3>{t('c_rule')}</h3>
+                <div className="rule-box"><RichText text={current.pl.rule} /></div>
+              </section>
+            )}
+            {current.pl.prepare && !current.held && (
+              <section>
+                <h3>{t('c_before')}</h3>
+                <RichText text={current.pl.prepare} />
+              </section>
+            )}
+            {fileRows.some((f) => f.program_lesson_id === current.pl.id) && (
+              <section>
+                <h3>{t('c_files')}</h3>
+                <div className="links">
+                  {fileRows.filter((f) => f.program_lesson_id === current.pl.id).map((f) => (
+                    <Link key={f.file_id} href={`${fileBase}/${f.file_id}`}>{f.title}</Link>
+                  ))}
+                </div>
+              </section>
+            )}
+            <section>
+              <h3>{t('c_after')}</h3>
+              {current.held ? (
+                <>
+                  <div className="links" style={{ marginBottom: 10 }}>
+                    {current.slot?.recording_url && <a href={current.slot.recording_url} target="_blank" rel="noreferrer">{t('c_watch')}</a>}
+                    {(current.slot?.homework_url ?? current.pl.homework_url) && (
+                      <a href={(current.slot?.homework_url ?? current.pl.homework_url)!} target="_blank" rel="noreferrer">{t('c_homework')}</a>
+                    )}
+                    {current.pl.vocab_url && <a href={current.pl.vocab_url} target="_blank" rel="noreferrer">{t('c_vocab')}</a>}
+                    {current.pl.slides_url && <a href={current.pl.slides_url} target="_blank" rel="noreferrer">{t('c_slides')}</a>}
+                  </div>
+                  <RichText text={current.pl.after_note} />
+                </>
+              ) : (
+                <p className="muted" style={{ margin: 0 }}>{t('c_opensAfter')}</p>
+              )}
+            </section>
+            {current.pl.connected && (
+              <section>
+                <h3>{t('c_connected')}</h3>
+                <RichText text={current.pl.connected} />
+              </section>
+            )}
+          </article>
+        )}
+
+        <aside className="stack course-aside">
+          {guides.length > 0 && (
+            <section className="card">
+              <h2 style={{ fontSize: 16 }}>{t('c_guides')}</h2>
+              {guides.map((f) => (
+                <Link key={f.file_id} href={`${fileBase}/${f.file_id}`} className="spread" style={{ padding: '10px 0', borderBottom: '1px solid var(--sand)', color: 'var(--ink)', textDecoration: 'none' }}>
+                  <span>{f.title}</span><span style={{ color: 'var(--red)', fontWeight: 600, fontSize: 14 }}>{t('open')}</span>
+                </Link>
+              ))}
+            </section>
+          )}
+          <section className="card" style={{ background: 'var(--sand)', borderColor: 'transparent' }}>
+            <h2 style={{ fontSize: 15, marginBottom: 6 }}>{t('c_missed')}</h2>
+            <p style={{ margin: 0, fontSize: 14, color: '#5a524c' }}>{t('c_missedText')}</p>
+          </section>
+        </aside>
+      </div>
+    </div>
+  );
+}

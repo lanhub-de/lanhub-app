@@ -38,6 +38,8 @@ function navFor(profile: Profile, t: T): NavItem[] {
       ];
     case 'teacher':
       return [...teaching, ...library];
+    case 'student':
+      return [{ href: '/me', label: t('navCourse') }];
     default:
       return [];
   }
@@ -61,7 +63,7 @@ export default function Shell({
       <header className="topbar">
         <Link href="/" className="brand-wrap">
           <span className="brand">LanHub</span>
-          <span className="brand-sub">{profile.role === 'teacher' ? t('teacherCabinet') : t('platformSchool')}</span>
+          <span className="brand-sub">{profile.role === 'teacher' ? t('teacherCabinet') : profile.role === 'student' ? t('studentCabinet') : t('platformSchool')}</span>
         </Link>
         {!side && <nav className="pills" aria-label="LanHub">{links}</nav>}
         <div className="who">

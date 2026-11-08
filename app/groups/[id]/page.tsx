@@ -53,7 +53,10 @@ export default async function GroupPage({ params, searchParams }: {
   return (
     <Shell profile={profile} t={t} active={staff ? '/school/groups' : '/teacher'}>
       <p style={{ marginTop: 0 }}><Link href={back}>← {staff ? t('navGroups') : t('navToday')}</Link></p>
-      <h1 style={{ marginBottom: 6 }}>{g.name}</h1>
+      <div className="spread" style={{ alignItems: 'flex-start' }}>
+        <h1 style={{ marginBottom: 6 }}>{g.name}</h1>
+        {g.program_id && <Link href={`/groups/${g.id}/preview`} className="btn small">{t('c_viewAsStudent')}</Link>}
+      </div>
       <p className="muted" style={{ marginTop: 0 }}>
         {nameOf.get(g.teacher_id ?? '') ?? '—'}
         {days ? ` · ${days} ${String(g.start_time ?? '').slice(0, 5)} (${t('groupTime')})` : ''}

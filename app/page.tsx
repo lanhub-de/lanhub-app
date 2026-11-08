@@ -5,6 +5,6 @@ import { requireProfile } from '@/lib/session';
 export default async function Home() {
   const { profile } = await requireProfile();
   if (profile.role === 'teacher') redirect('/teacher');
-  if (profile.role === 'student') redirect('/no-access');
+  if (profile.role === 'student') redirect('/me');
   redirect('/school');
 }
