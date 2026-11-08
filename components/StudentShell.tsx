@@ -14,7 +14,7 @@ export default function StudentShell({
   t, locale, name, active, children, preview,
 }: {
   t: T; locale: Locale; name: string; active: string; children: React.ReactNode;
-  preview?: { back: string; label: string; text?: string };
+  preview?: { back: string; label: string; text?: string; base?: string };
 }) {
   const items: Item[] = [
     { href: '/me', label: t('navHome'), icon: <IconHome /> },
@@ -33,9 +33,10 @@ export default function StudentShell({
         {i.chat && !preview && <ChatBadge />}
       </>
     );
-    return preview
-      ? <span key={i.href} className={cls} aria-disabled="true">{inner}</span>
-      : <Link key={i.href} href={i.href} className={cls} aria-current={cls ? 'page' : undefined}>{inner}</Link>;
+    if (preview && !preview.base) return <span key={i.href} className={cls} aria-disabled="true">{inner}</span>;
+    // in "view as student" the tabs lead to the same pages under the preview address
+    const href = preview?.base ? `${preview.base}${i.href === '/me' ? '' : i.href.replace(/^\/me/, '')}` : i.href;
+    return <Link key={i.href} href={href} className={cls} aria-current={cls ? 'page' : undefined}>{inner}</Link>;
   };
   return (
     <div className="s-frame">
