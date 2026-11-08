@@ -99,18 +99,20 @@ export default function TodayLessonCard({
       </div>
       <details className="plan">
         <summary>
-          {lesson.note || lesson.homework_text ? (
+          {lesson.note || lesson.homework_text || lesson.recording_url ? (
             <span className="plan-sum">
               {lesson.note && <span><span className="muted">{t('lessonTopic')}:</span> {lesson.note}</span>}
               {lesson.homework_text && <span><span className="muted">{t('hwTask')}:</span> {lesson.homework_text}</span>}
+              {lesson.recording_url && <span><span className="muted">{t('recordingWord')}:</span> ▶ {t('recordingAdded')}</span>}
             </span>
-          ) : <span className="link-btn">+ {t('topicAndHomework')}</span>}
+          ) : <span className="link-btn">+ {t('topicHomeworkRecording')}</span>}
         </summary>
         <form action={saveLessonPlan} className="plan-form">
           <input type="hidden" name="id" value={lesson.id} />
           <input type="hidden" name="return_to" value={returnTo} />
           <label>{t('lessonTopic')}<input name="note" defaultValue={lesson.note ?? ''} placeholder="worauf / darauf" maxLength={300} /></label>
           <label>{t('hwTask')}<textarea name="homework_text" rows={2} defaultValue={lesson.homework_text ?? ''} maxLength={4000} /></label>
+          <label>{t('recordingLink')}<input type="url" name="recording_url" defaultValue={lesson.recording_url ?? ''} placeholder="https://…" /></label>
           <Submit className="primary small">{t('save')}</Submit>
         </form>
       </details>

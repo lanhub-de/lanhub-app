@@ -121,8 +121,10 @@ export async function saveLessonPlan(formData: FormData) {
   const returnTo = String(formData.get('return_to') || '/teacher');
   const note = String(formData.get('note') ?? '').trim() || null;
   const homework = String(formData.get('homework_text') ?? '').trim() || null;
+  const update: Record<string, string | null> = { note, homework_text: homework };
+  if (formData.has('recording_url')) update.recording_url = String(formData.get('recording_url') ?? '').trim() || null;
   const supabase = await supabaseServer();
-  const { error } = await supabase.from('lessons').update({ note, homework_text: homework }).eq('id', id);
+  const { error } = await supabase.from('lessons').update(update).eq('id', id);
   back(returnTo, error?.message);
 }
 
