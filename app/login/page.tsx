@@ -1,4 +1,5 @@
 import LoginForm from './LoginForm';
+import LocaleMark from '@/components/LocaleMark';
 import { translator, type Locale } from '@/lib/i18n';
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ lang?: string; e?: string }> }) {
@@ -7,6 +8,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   const t = translator(locale);
   return (
     <div className="center">
+      <LocaleMark locale={locale} />
       <div className="login card stack">
         <div className="spread">
           <span className="brand">LanHub</span>

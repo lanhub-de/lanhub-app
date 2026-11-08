@@ -438,3 +438,11 @@ details.s-prev > summary { display: flex; justify-content: space-between; gap: 1
   .s-sched-row { grid-template-columns: minmax(0, 1fr) auto; }
   .s-sched-when { grid-column: 1 / -1; margin-bottom: -6px; }
 }
+
+/* "Schedule a lesson" */
+.schedule > summary { white-space: nowrap; }
+.schedule-form { width: min(340px, calc(100vw - 32px)); gap: 10px; }
+.schedule-form.left { left: 0; right: auto; }
+.schedule-form label { font-size: 13px; }
+.schedule-two { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+@media (max-width: 640px) { .schedule-form { left: 0; right: auto; } }

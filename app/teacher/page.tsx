@@ -2,9 +2,9 @@ import Link from 'next/link';
 import Shell, { Flash } from '@/components/Shell';
 import GroupLessonCard, { type Member } from '@/components/GroupLessonCard';
 import TodayLessonCard, { type FileRef } from '@/components/TodayLessonCard';
+import ScheduleLesson from '@/components/ScheduleLesson';
 import { requireProfile, TEACHING } from '@/lib/session';
 import { currentMonthStart, fmtDate, fmtMoney, fmtMonth, kyivLocalToIso, SCHOOL_TZ } from '@/lib/i18n';
-import { addLesson } from './actions';
 import { openChat } from '@/app/chat/actions';
 import { LESSON_SELECT as select, type LessonDb } from '@/lib/lessons';
 import { asParam, CabinetSwitch, onlyTheirs, whoseCabinet } from '@/lib/cabinet';
@@ -119,9 +119,17 @@ export default async function TeacherPage({ searchParams }: { searchParams: Prom
 
       <div className="cabinet">
         <section className="stack cabinet-main">
-          <div className="spread" style={{ alignItems: 'baseline' }}>
-            <h1 style={{ margin: 0 }}>{who.viewing ? t('cabinetTitle', { name: who.name }) : t('todayHeading')}</h1>
-            <span className="muted" style={{ fontSize: 13 }}>{t('todayHint')}</span>
+          <div className="spread" style={{ alignItems: 'center' }}>
+            <div>
+              <h1 style={{ margin: 0 }}>{who.viewing ? t('cabinetTitle', { name: who.name }) : t('todayHeading')}</h1>
+              <span className="muted" style={{ fontSize: 13 }}>{t('todayHint')}</span>
+            </div>
+            <ScheduleLesson t={t} returnTo={here}
+              students={myStudents.map((s) => ({ id: s.id, name: s.full_name, level: s.level }))}
+              groups={(groups.data ?? []).map((g) => ({ id: g.id, name: g.name }))}
+              teacherId={who.viewing && !who.pending ? who.id : undefined}
+              pending={who.pending}
+              school={profile.role === 'owner' || profile.role === 'head_teacher'} />
           </div>
 
           {(unmarked.data?.length ?? 0) > 0 && (
@@ -184,27 +192,6 @@ export default async function TeacherPage({ searchParams }: { searchParams: Prom
               })}
             </div>
           </div>
-
-          {!who.pending && (
-            <details className="card">
-              <summary>+ {t('addLesson')}</summary>
-              <form action={addLesson} className="form" style={{ marginTop: 12 }}>
-                <input type="hidden" name="return_to" value={here} />
-                {who.viewing && <input type="hidden" name="teacher_id" value={who.id} />}
-                <label>
-                  {t('whoWith')}
-                  <select name="who" required defaultValue="">
-                    <option value="" disabled>…</option>
-                    {myStudents.map((s) => <option key={s.id} value={`s:${s.id}`}>{s.full_name}{s.level ? ` · ${s.level}` : ''}</option>)}
-                    {(groups.data ?? []).map((g) => <option key={g.id} value={`g:${g.id}`}>{g.name}</option>)}
-                  </select>
-                </label>
-                <label>{t('date')} · {t('time')}<input type="datetime-local" name="starts_at" required /></label>
-                <label>{t('zoomLink')}<input type="url" name="zoom_url" placeholder="https://zoom.us/j/…" /></label>
-                <button className="primary" type="submit">{t('add')}</button>
-              </form>
-            </details>
-          )}
 
           {(recent.data ?? []).length > 0 && (
             <details className="card">

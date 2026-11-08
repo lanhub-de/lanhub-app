@@ -10,6 +10,7 @@ import { openChat } from '@/app/chat/actions';
 import { saveStudentInfo } from '@/app/teacher/actions';
 import { Flash } from '@/components/Shell';
 import Submit from '@/components/Submit';
+import ScheduleLesson from '@/components/ScheduleLesson';
 
 type L = { id: string; starts_at: string; status: string; recording_url: string | null; homework_url: string | null; note: string | null; homework_text: string | null };
 
@@ -64,6 +65,9 @@ export default async function StudentFolder({
           <p className="muted" style={{ marginTop: 0 }}>{[s.level, s.market === 'intl' ? t('market_intl') : t('market_ua'), s.schedule_note].filter(Boolean).join(' · ')}</p>
         </div>
         <div className="row">
+          <ScheduleLesson t={t} returnTo={here} students={[{ id: s.id, name: s.full_name, level: s.level }]} preselect={`s:${s.id}`}
+            teacherId={who.viewing && !who.pending ? who.id : undefined} pending={who.pending}
+            school={profile.role === 'owner' || profile.role === 'head_teacher'} />
           <Link href={`/students/${s.id}/preview`} className="btn">👁 {t('viewAsStudent')}</Link>
           {s.zoom_url && <a href={s.zoom_url} target="_blank" rel="noreferrer" className="btn">🎥 Zoom</a>}
           {who.pending ? (

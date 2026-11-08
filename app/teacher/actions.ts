@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { supabaseServer } from '@/lib/supabase/server';
 import { kyivLocalToIso } from '@/lib/i18n';
+import { sendMessage } from '@/app/chat/actions';
 
 const STATUSES = ['scheduled', 'done', 'no_show', 'late_cancel', 'cancelled', 'force_majeure', 'rescheduled'];
 
@@ -34,6 +35,10 @@ export async function moveLesson(formData: FormData) {
   back(returnTo, error?.message);
 }
 
+// "Schedule a lesson": one lesson, or the same time every week for a few
+// weeks. For an invited teacher who has not signed in yet the school books it
+// as hers (pending), and it moves to her on first sign-in. The student hears
+// about it in her chat with the teacher.
 export async function addLesson(formData: FormData) {
   const supabase = await supabaseServer();
   const { data: { user } } = await supabase.auth.getUser();
@@ -43,18 +48,52 @@ export async function addLesson(formData: FormData) {
   const startsLocal = String(formData.get('starts_at') || '');
   if (!who || !startsLocal) return back(returnTo, 'Fill in who and when');
   const [type, id] = who.split(':');
-  const teacherId = String(formData.get('teacher_id') || user.id);
-  const row: Record<string, unknown> = {
-    teacher_id: teacherId,
-    starts_at: kyivLocalToIso(startsLocal),
-    duration_min: Number(formData.get('duration_min') || 60),
-    zoom_url: String(formData.get('zoom_url') || '') || null,
-  };
-  if (type === 'g') row.group_id = id; else row.student_id = id;
+  const pending = String(formData.get('pending') || '') || null;
+  const teacherId = pending ? user.id : String(formData.get('teacher_id') || user.id);
+  const repeat = Math.min(Math.max(Number(formData.get('repeat') || 1), 1), 12);
+  if (Number.isNaN(new Date(kyivLocalToIso(startsLocal)).getTime())) return back(returnTo, 'Check the date and time');
   const kind = String(formData.get('kind') || '');
-  if (kind) row.kind = kind;
-  const { error } = await supabase.from('lessons').insert(row);
-  back(returnTo, error?.message);
+  const rows = Array.from({ length: repeat }, (_, i) => {
+    const row: Record<string, unknown> = {
+      teacher_id: teacherId,
+      starts_at: kyivLocalToIso(shiftLocal(startsLocal, i * 7)),
+      duration_min: Number(formData.get('duration_min') || 60),
+      zoom_url: String(formData.get('zoom_url') || '') || null,
+    };
+    if (pending) row.pending_teacher = pending;
+    if (type === 'g') row.group_id = id;
+    else { row.student_id = id; row.kind = kind || 'individual'; }
+    return row;
+  });
+  const { error } = await supabase.from('lessons').insert(rows);
+  if (error) return back(returnTo, error.message);
+
+  // let the student know in the chat with her teacher (not for an invited
+  // teacher yet: there is no chat until she signs in)
+  if (type === 's' && !pending) {
+    try {
+      const { data: cid } = await supabase.rpc('start_chat', { p_kind: 'direct', p_group: null, p_student: id, p_teacher: teacherId });
+      if (cid) {
+        const when = rows.map((r) => fmtKyiv(String(r.starts_at))).join(', ');
+        await sendMessage({ conversationId: cid as string, body: `📅 ${rows.length > 1 ? 'Нові заняття / New lessons' : 'Нове заняття / New lesson'}: ${when}` });
+      }
+    } catch { /* the lesson is booked either way */ }
+  }
+  back(returnTo);
+}
+
+// "2026-11-13T18:00" plus n days, still as Kyiv wall-clock time
+function shiftLocal(local: string, days: number) {
+  if (!days) return local;
+  const [d, time] = local.split('T');
+  const dt = new Date(`${d}T12:00:00Z`);
+  dt.setUTCDate(dt.getUTCDate() + days);
+  return `${dt.toISOString().slice(0, 10)}T${time}`;
+}
+
+function fmtKyiv(iso: string) {
+  return new Intl.DateTimeFormat('uk-UA', { timeZone: 'Europe/Kyiv', weekday: 'short', day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' })
+    .format(new Date(iso));
 }
 
 // Materials for one lesson: a library file or the teacher's own.

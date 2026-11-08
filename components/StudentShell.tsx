@@ -2,6 +2,7 @@ import Link from 'next/link';
 import type { Locale, T } from '@/lib/i18n';
 import { setLocale } from '@/app/actions';
 import ChatBadge from '@/components/ChatBadge';
+import LocaleMark from '@/components/LocaleMark';
 import { IconBook, IconCalendar, IconChat, IconHome } from '@/components/Icons';
 
 type Item = { href: string; label: string; icon: React.ReactNode; chat?: boolean };
@@ -40,6 +41,7 @@ export default function StudentShell({
   };
   return (
     <div className="s-frame">
+      <LocaleMark locale={locale} />
       {preview && (
         <div className="s-preview-bar">
           <span>👁 {preview.text ?? t('studentPreviewBar', { name })}</span>

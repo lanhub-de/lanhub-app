@@ -33,10 +33,12 @@ export default function UpdateWatcher() {
   }, []);
 
   if (!stale) return null;
+  // in the person's interface language; English when it is not known (sign-in page)
+  const uk = document.documentElement.dataset.locale === 'uk';
   return (
     <div className="update-bar" role="status">
-      <span>Вийшла нова версія LanHub · New version</span>
-      <button type="button" className="primary small" onClick={() => window.location.reload()}>Оновити · Refresh</button>
+      <span>{uk ? 'Вийшла нова версія LanHub' : 'A new version of LanHub is out'}</span>
+      <button type="button" className="primary small" onClick={() => window.location.reload()}>{uk ? 'Оновити' : 'Refresh'}</button>
     </div>
   );
 }

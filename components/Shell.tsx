@@ -4,6 +4,7 @@ import type { T } from '@/lib/i18n';
 import { setLocale, signOut } from '@/app/actions';
 import ChatBadge from '@/components/ChatBadge';
 import StudentShell from '@/components/StudentShell';
+import LocaleMark from '@/components/LocaleMark';
 
 type NavItem = { href: string; label: string };
 
@@ -70,6 +71,7 @@ export default function Shell({
   ));
   return (
     <>
+      <LocaleMark locale={profile.locale} />
       <header className="topbar">
         <Link href="/" className="brand-wrap">
           <span className="brand">LanHub</span>
