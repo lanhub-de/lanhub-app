@@ -829,3 +829,58 @@ test('chat files: only people in the chat can upload and open them', async () =>
   assert.equal((await rows(ids.toma, `select * from storage.objects where bucket_id = 'chat'`)).length, 1);
   assert.equal((await rows(ids.nadiia, `select * from storage.objects where bucket_id = 'chat'`)).length, 0);
 });
+
+// ---------------------------------------------------------------------------
+// Homework
+// ---------------------------------------------------------------------------
+test('a student hands in homework for her lesson; the teacher checks it; others see nothing', async () => {
+  const [{ submit_homework: hid }] = await rows(ids.sarahLogin,
+    `select public.submit_homework($1, 'Ich warte auf den Bus.', $2, 'audio', 'voice.webm')`,
+    [ids.g3first, `${ids.g3first}/${ids.sarah}/voice.webm`]);
+  assert.ok(hid);
+  // the teacher sees it waiting
+  const [h] = await rows(ids.toma, 'select status, body, file_kind from public.homework where id = $1', [hid]);
+  assert.deepEqual([h.status, h.body, h.file_kind], ['submitted', 'Ich warte auf den Bus.', 'audio']);
+  // another student, another teacher and the manager see nothing
+  assert.equal((await rows(ids.marcoLogin ?? ids.manager, 'select * from public.homework where id = $1', [hid])).length, 0);
+  assert.equal((await rows(ids.nadiia, 'select * from public.homework where id = $1', [hid])).length, 0);
+  assert.equal((await rows(ids.manager, 'select * from public.homework where id = $1', [hid])).length, 0);
+  // nobody else can check it
+  assert.ok(await fails(ids.nadiia, `select public.review_homework($1, 'x')`, [hid]));
+  assert.ok(await fails(ids.sarahLogin, `select public.review_homework($1, 'x')`, [hid]));
+  await rows(ids.toma, `select public.review_homework($1, 'Super! Achte auf die Wortstellung.')`, [hid]);
+  const [mine] = await rows(ids.sarahLogin, 'select status, feedback from public.homework where id = $1', [hid]);
+  assert.deepEqual([mine.status, mine.feedback], ['checked', 'Super! Achte auf die Wortstellung.']);
+  // the head teacher sees it too
+  assert.equal((await rows(ids.agata, 'select * from public.homework where id = $1', [hid])).length, 1);
+  // handing in again replaces it and waits for a new check
+  await rows(ids.sarahLogin, `select public.submit_homework($1, 'Ich warte auf den Zug.')`, [ids.g3first]);
+  const [again] = await rows(ids.toma, 'select status, body, feedback, file_path from public.homework where id = $1', [hid]);
+  assert.deepEqual([again.status, again.body, again.feedback, again.file_path], ['submitted', 'Ich warte auf den Zug.', null, null]);
+  // no direct writes
+  assert.ok(await fails(ids.sarahLogin, `update public.homework set status = 'checked' where id = $1`, [hid]));
+});
+
+test('homework only for your own lessons, files only in your own folder', async () => {
+  const [other] = await rows(ids.owner,
+    `select l.id from public.lessons l join public.groups g on g.id = l.group_id
+      where g.teacher_id = $1 and l.group_id not in (select group_id from public.group_members where student_id = $2)
+      limit 1`, [ids.toma, ids.sarah]);
+  assert.ok(await fails(ids.sarahLogin, `select public.submit_homework($1, 'x')`, [other.id]));
+  await as(ids.sarahLogin, (tx) => tx.query(
+    `insert into storage.objects (bucket_id, name) values ('homework', $1)`, [`${ids.g3first}/${ids.sarah}/photo.jpg`]));
+  assert.ok(await fails(ids.sarahLogin,
+    `insert into storage.objects (bucket_id, name) values ('homework', $1)`, [`${other.id}/${ids.sarah}/x.jpg`]));
+  assert.ok(await fails(ids.nadiia,
+    `insert into storage.objects (bucket_id, name) values ('homework', $1)`, [`${ids.g3first}/${ids.sarah}/x.jpg`]));
+  assert.equal((await rows(ids.toma, `select * from storage.objects where bucket_id = 'homework'`)).length, 1);
+  assert.equal((await rows(ids.nadiia, `select * from storage.objects where bucket_id = 'homework'`)).length, 0);
+});
+
+test('file rules never trip over folders that are not ids', async () => {
+  await db.query(`insert into storage.objects (bucket_id, name) values ('files', 'library/guide.pdf'), ('files', 'private/x/y.pdf')`);
+  const seen = await rows(ids.owner, `select name from storage.objects where bucket_id = 'files' order by name`);
+  assert.ok(Array.isArray(seen));
+  const [{ try_uuid: bad }] = await rows(ids.owner, `select public.try_uuid('library')`);
+  assert.equal(bad, null);
+});

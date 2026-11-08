@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import type { Locale, T } from '@/lib/i18n';
-import { fmtDateTime } from '@/lib/i18n';
+import { fmtInTz, SCHOOL_TZ } from '@/lib/i18n';
 import type { LessonDb } from '@/lib/lessons';
 import { setLessonStatus } from '@/app/teacher/actions';
 import { setRecording, toggleAbsence } from '@/app/groups/actions';
@@ -22,7 +22,7 @@ export default function GroupLessonCard({
     <article className="card group-lesson">
       <div className="spread">
         <div>
-          <div style={{ fontWeight: 700, color: 'var(--red)' }}>{fmtDateTime(lesson.starts_at, locale)}</div>
+          <div style={{ fontWeight: 700, color: 'var(--red)' }}>{fmtInTz(lesson.starts_at, lesson.groups?.tz ?? SCHOOL_TZ, locale)}{lesson.groups?.tz === 'Europe/Vienna' ? <span className="muted" style={{ fontWeight: 400, fontSize: 13 }}> · {t('groupTime')}</span> : null}</div>
           <div style={{ fontWeight: 600, fontSize: 17 }}>
             {lesson.group_id ? <Link href={`/groups/${lesson.group_id}`} style={{ color: 'var(--ink)' }}>{lesson.groups?.name}</Link> : lesson.groups?.name}
           </div>

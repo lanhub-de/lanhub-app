@@ -1,0 +1,93 @@
+import Link from 'next/link';
+import type { Locale, T } from '@/lib/i18n';
+import { SCHOOL_TZ } from '@/lib/i18n';
+import type { LessonDb } from '@/lib/lessons';
+import { moveLesson, setLessonStatus } from '@/app/teacher/actions';
+
+const OTHER = ['late_cancel', 'cancelled', 'force_majeure'];
+
+function timeIn(iso: string, tz: string, locale: Locale) {
+  return new Intl.DateTimeFormat(locale === 'uk' ? 'uk-UA' : 'en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit' }).format(new Date(iso));
+}
+function dayIn(iso: string, tz: string, locale: Locale) {
+  return new Intl.DateTimeFormat(locale === 'uk' ? 'uk-UA' : 'en-GB', { timeZone: tz, weekday: 'short', day: 'numeric', month: 'short' }).format(new Date(iso));
+}
+// the value for <input type="datetime-local"> in Kyiv time
+function localValue(iso: string) {
+  const p = new Intl.DateTimeFormat('en-CA', { timeZone: SCHOOL_TZ, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+    .formatToParts(new Date(iso));
+  const g = (k: string) => p.find((x) => x.type === k)?.value;
+  return `${g('year')}-${g('month')}-${g('day')}T${g('hour')}:${g('minute')}`;
+}
+
+// An individual lesson in the teacher's day, as in the mockup: the time, who,
+// and three buttons. Anything else (cancelled in time, force majeure) under "…".
+export default function TodayLessonCard({
+  lesson, t, locale, returnTo, showDay,
+}: { lesson: LessonDb; t: T; locale: Locale; returnTo: string; showDay?: boolean }) {
+  const held = ['done', 'no_show', 'late_cancel'].includes(lesson.status);
+  const who = lesson.students?.full_name ?? lesson.groups?.name ?? '';
+  const level = lesson.students?.level ?? lesson.groups?.level;
+  const status = (s: string, label: string, cls = '') => (
+    <form action={setLessonStatus}>
+      <input type="hidden" name="id" value={lesson.id} />
+      <input type="hidden" name="status" value={s} />
+      <input type="hidden" name="return_to" value={returnTo} />
+      <button className={cls} type="submit">{label}</button>
+    </form>
+  );
+  return (
+    <article className="card today-card">
+      <div className="today-top">
+        <div className="today-when">
+          <span className="today-time">{timeIn(lesson.starts_at, SCHOOL_TZ, locale)}</span>
+          {showDay && <span className="muted" style={{ fontSize: 13 }}>{dayIn(lesson.starts_at, SCHOOL_TZ, locale)}</span>}
+        </div>
+        <div className="today-who">
+          <strong>{who}{level ? ` · ${level}` : ''}</strong>
+          <span className="muted">{t(`kind_${lesson.kind}` as never)}</span>
+        </div>
+        <div className="today-actions">
+          {lesson.status === 'scheduled' ? (
+            <>
+              {status('no_show', t('btnNoShow'))}
+              <details className="move">
+                <summary className="btn">{t('btnMove')}</summary>
+                <form action={moveLesson} className="move-form">
+                  <input type="hidden" name="id" value={lesson.id} />
+                  <input type="hidden" name="return_to" value={returnTo} />
+                  <label>{t('newTime')}<input type="datetime-local" name="starts_at" required defaultValue={localValue(lesson.starts_at)} /></label>
+                  <button className="primary small" type="submit">{t('save')}</button>
+                </form>
+              </details>
+              {status('done', t('markDone'), 'primary')}
+            </>
+          ) : (
+            <>
+              <span className={`pill ${held ? 'ok' : ''}`}>{t(`st_${lesson.status}` as never)}</span>
+              {status('scheduled', t('undo'), 'small')}
+            </>
+          )}
+        </div>
+      </div>
+      <div className="today-bottom">
+        <span className="row" style={{ gap: 14 }}>
+          {lesson.zoom_url
+            ? <a href={lesson.zoom_url} target="_blank" rel="noreferrer" className="zoom-link">🎥 {t('joinZoom')}</a>
+            : <span className="muted">{t('noZoom')}</span>}
+        </span>
+        <span className="row" style={{ gap: 12 }}>
+          {lesson.status === 'scheduled' && (
+            <details className="more">
+              <summary>…</summary>
+              <div className="row" style={{ gap: 6, marginTop: 6 }}>
+                {OTHER.map((s) => <span key={s}>{status(s, t(`st_${s}` as never), 'small')}</span>)}
+              </div>
+            </details>
+          )}
+          <Link href="/library" className="small-link">+ {t('fromLibrary')}</Link>
+        </span>
+      </div>
+    </article>
+  );
+}

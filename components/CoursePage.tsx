@@ -2,7 +2,10 @@ import Link from 'next/link';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import RichText from '@/components/RichText';
 import type { Locale, T } from '@/lib/i18n';
-import { fmtDayInTz, fmtInTz } from '@/lib/i18n';
+import { fmtDate, fmtDayInTz, fmtInTz } from '@/lib/i18n';
+import HomeworkForm from '@/components/HomeworkForm';
+import HomeworkView from '@/components/HomeworkView';
+import { HOMEWORK_COLUMNS, homeworkLabels, withFileLinks, type Homework } from '@/lib/homework';
 
 type Head = {
   id: string; name: string; level: string | null; days: number[] | null; start_time: string | null; tz: string;
@@ -42,6 +45,15 @@ export default async function CoursePage({
   const scheduleRows = (schedule.data ?? []) as Slot[];
   const lessonRows = (lessons.data ?? []) as PL[];
   const fileRows = (files.data ?? []) as CourseFile[];
+
+  // the student's own hand-ins for this course
+  const { data: myIds } = preview ? { data: [] } : await supabase.rpc('my_student_ids');
+  const meStudent = ((myIds ?? []) as string[])[0] ?? null;
+  const hwRows = meStudent && scheduleRows.length
+    ? await withFileLinks(supabase, ((await supabase.from('homework').select(HOMEWORK_COLUMNS)
+        .in('lesson_id', scheduleRows.map((r) => r.id))).data ?? []) as Homework[])
+    : [];
+  const hwBy = new Map(hwRows.map((h) => [h.lesson_id, h]));
 
   const now = Date.now();
   const dayKey = (d: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: g.tz, dateStyle: 'short' }).format(d);
@@ -105,7 +117,9 @@ export default async function CoursePage({
               aria-current={current?.pl.id === i.pl.id ? 'page' : undefined}>
               <span className="num">{i.pl.n}</span>
               <span className="ttl">{i.pl.title}</span>
-              <span className={`tag ${i.held ? 'ok' : i.isToday ? 'today' : ''}`}>{badge(i)}</span>
+              <span className={`tag ${i.held ? 'ok' : i.isToday ? 'today' : ''}`}>
+                {badge(i)}{i.slot && hwBy.get(i.slot.id) ? (hwBy.get(i.slot.id)!.status === 'checked' ? ' · ✅' : ' · 📚') : ''}
+              </span>
             </Link>
           ))}
         </nav>
@@ -153,6 +167,44 @@ export default async function CoursePage({
                     {current.pl.slides_url && <a href={current.pl.slides_url} target="_blank" rel="noreferrer">{t('c_slides')}</a>}
                   </div>
                   <RichText text={current.pl.after_note} />
+                  {current.slot && (
+                    <div className="hw-box">
+                      <h3 style={{ marginTop: 0 }}>{t('hwMine')}</h3>
+                      {preview || !meStudent ? (
+                        <p className="muted" style={{ margin: 0 }}>{t('hwPreview')}</p>
+                      ) : (() => {
+                        const h = hwBy.get(current.slot.id);
+                        return (
+                          <>
+                            {h && (
+                              <div className="stack" style={{ gap: 8, marginBottom: 10 }}>
+                                <span className={`pill ${h.status === 'checked' ? 'ok' : ''}`}>
+                                  {h.status === 'checked' ? t('hwChecked') : t('hwSentOn', { date: fmtDate(h.submitted_at, locale) })}
+                                </span>
+                                <HomeworkView body={h.body} url={h.file_url} kind={h.file_kind} name={h.file_name} />
+                                {h.status === 'checked' && (h.feedback || h.feedback_url) && (
+                                  <div className="hw-feedback">
+                                    <strong>{t('hwTeacherSays')}</strong>
+                                    <HomeworkView body={h.feedback} url={h.feedback_url} kind={h.feedback_file_kind} name={h.feedback_file_name} />
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                            {h ? (
+                              <details>
+                                <summary>{t('hwAgain')}</summary>
+                                <HomeworkForm mode="submit" lessonId={current.slot.id} studentId={meStudent}
+                                  labels={homeworkLabels(t, 'submit')} path={basePath} />
+                              </details>
+                            ) : (
+                              <HomeworkForm mode="submit" lessonId={current.slot.id} studentId={meStudent}
+                                labels={homeworkLabels(t, 'submit')} path={basePath} />
+                            )}
+                          </>
+                        );
+                      })()}
+                    </div>
+                  )}
                 </>
               ) : (
                 <p className="muted" style={{ margin: 0 }}>{t('c_opensAfter')}</p>

@@ -21,6 +21,17 @@ export async function setLessonStatus(formData: FormData) {
   back(returnTo, error?.message);
 }
 
+// A lesson moved to another time (Kyiv time in the form).
+export async function moveLesson(formData: FormData) {
+  const id = String(formData.get('id'));
+  const returnTo = String(formData.get('return_to') || '/teacher');
+  const local = String(formData.get('starts_at') || '');
+  if (!local) back(returnTo, 'Choose the new time');
+  const supabase = await supabaseServer();
+  const { error } = await supabase.from('lessons').update({ starts_at: kyivLocalToIso(local) }).eq('id', id);
+  back(returnTo, error?.message);
+}
+
 export async function addLesson(formData: FormData) {
   const supabase = await supabaseServer();
   const { data: { user } } = await supabase.auth.getUser();
