@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import Shell, { Flash } from '@/components/Shell';
 import { requireProfile } from '@/lib/session';
 import { fmtInTz } from '@/lib/i18n';
+import { INVITE, pendingTeachers } from '@/lib/invites';
 import { addMember, archiveGroup, continueGroup, removeMember, updateGroup } from '../actions';
 
 type LessonRowDb = {
@@ -19,11 +20,11 @@ export default async function GroupPage({ params, searchParams }: {
   const staff = profile.role !== 'teacher';
 
   const { data: g } = await supabase.from('groups')
-    .select('id, name, level, teacher_id, program_id, days, start_time, tz, capacity, zoom_url, active, continued_from')
+    .select('id, name, level, teacher_id, pending_teacher, program_id, days, start_time, tz, capacity, zoom_url, active, continued_from')
     .eq('id', id).maybeSingle();
   if (!g) notFound();
 
-  const [program, members, lessons, people, students] = await Promise.all([
+  const [program, members, lessons, people, students, invited, pendingName] = await Promise.all([
     g.program_id
       ? supabase.from('programs').select('id, title, next_program_id').eq('id', g.program_id).maybeSingle()
       : Promise.resolve({ data: null }),
@@ -33,7 +34,12 @@ export default async function GroupPage({ params, searchParams }: {
       .eq('group_id', id).order('starts_at').returns<LessonRowDb[]>(),
     supabase.from('profiles').select('id, full_name, role, active'),
     staff ? supabase.from('students').select('id, full_name, level').eq('status', 'active').order('full_name') : Promise.resolve({ data: [] }),
+    staff ? pendingTeachers(supabase) : Promise.resolve([]),
+    g.pending_teacher ? supabase.rpc('pending_name', { e: g.pending_teacher }) : Promise.resolve({ data: null }),
   ]);
+  const teacherLabel = g.pending_teacher
+    ? `${(pendingName.data as string | null) ?? g.pending_teacher} · ${t('pending')}`
+    : (people.data ?? []).find((p) => p.id === g.teacher_id)?.full_name ?? '—';
   const lessonIds = (lessons.data ?? []).map((l) => l.id);
   const { data: absences } = lessonIds.length
     ? await supabase.from('lesson_absences').select('lesson_id, student_id').in('lesson_id', lessonIds)
@@ -58,7 +64,7 @@ export default async function GroupPage({ params, searchParams }: {
         {g.program_id && <Link href={`/groups/${g.id}/preview`} className="btn small">{t('c_viewAsStudent')}</Link>}
       </div>
       <p className="muted" style={{ marginTop: 0 }}>
-        {nameOf.get(g.teacher_id ?? '') ?? '—'}
+        {teacherLabel}
         {days ? ` · ${days} ${String(g.start_time ?? '').slice(0, 5)} (${t('groupTime')})` : ''}
         {program.data ? ` · ${program.data.title}` : ''}
         {g.zoom_url ? <> · <a href={g.zoom_url} target="_blank" rel="noreferrer">Zoom</a></> : null}
@@ -169,8 +175,9 @@ export default async function GroupPage({ params, searchParams }: {
                 <input type="hidden" name="id" value={g.id} />
                 <label>{t('name')}<input name="name" defaultValue={g.name} required /></label>
                 <label>{t('teacher')}
-                  <select name="teacher_id" defaultValue={g.teacher_id ?? ''} required>
+                  <select name="teacher_id" defaultValue={g.pending_teacher ? `${INVITE}${g.pending_teacher}` : g.teacher_id ?? ''} required>
                     {teachers.map((p) => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+                    {invited.map((i) => <option key={i.email} value={`${INVITE}${i.email}`}>{i.full_name} · {t('pending')}</option>)}
                   </select>
                 </label>
                 <label>{t('zoomLink')}<input name="zoom_url" type="url" defaultValue={g.zoom_url ?? ''} /></label>

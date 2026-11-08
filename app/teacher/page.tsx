@@ -16,15 +16,15 @@ export default async function TeacherPage({ searchParams }: { searchParams: Prom
   const month = currentMonthStart();
 
   const [unmarked, upcoming, recent, students, groups, packages, pay] = await Promise.all([
-    supabase.from('lessons').select(select).eq('teacher_id', profile.id).eq('status', 'scheduled')
+    supabase.from('lessons').select(select).eq('teacher_id', profile.id).is('pending_teacher', null).eq('status', 'scheduled')
       .lt('starts_at', now.toISOString()).gte('starts_at', ago30).order('starts_at').returns<LessonDb[]>(),
-    supabase.from('lessons').select(select).eq('teacher_id', profile.id)
+    supabase.from('lessons').select(select).eq('teacher_id', profile.id).is('pending_teacher', null)
       .gte('starts_at', now.toISOString()).lte('starts_at', in14).order('starts_at').returns<LessonDb[]>(),
-    supabase.from('lessons').select(select).eq('teacher_id', profile.id).neq('status', 'scheduled')
+    supabase.from('lessons').select(select).eq('teacher_id', profile.id).is('pending_teacher', null).neq('status', 'scheduled')
       .gte('starts_at', ago30).lt('starts_at', now.toISOString()).order('starts_at', { ascending: false })
       .limit(10).returns<LessonDb[]>(),
     supabase.from('students').select('id, full_name, level, teacher_id').eq('status', 'active').order('full_name'),
-    supabase.from('groups').select('id, name, level').eq('teacher_id', profile.id).eq('active', true).order('name'),
+    supabase.from('groups').select('id, name, level').eq('teacher_id', profile.id).is('pending_teacher', null).eq('active', true).order('name'),
     supabase.from('package_usage').select('student_id, lessons_left, valid_until, status').eq('status', 'active'),
     supabase.from('monthly_payouts').select('total, lessons_count, currency')
       .eq('teacher_id', profile.id).eq('month', month),
@@ -42,7 +42,7 @@ export default async function TeacherPage({ searchParams }: { searchParams: Prom
     groupLessonIds.length
       ? supabase.from('lesson_absences').select('lesson_id, student_id').in('lesson_id', groupLessonIds)
       : Promise.resolve({ data: [] as { lesson_id: string; student_id: string }[] }),
-    supabase.from('group_overview').select('id, name, members, lessons_total, lessons_done').eq('teacher_id', profile.id).eq('active', true).order('name'),
+    supabase.from('group_overview').select('id, name, members, lessons_total, lessons_done').eq('teacher_id', profile.id).is('pending_teacher', null).eq('active', true).order('name'),
   ]);
   const membersOf = (gid: string): Member[] => (memberRows.data ?? [])
     .filter((m) => m.group_id === gid).map((m) => ({ student_id: m.student_id, name: m.students?.full_name ?? '' }))

@@ -2,6 +2,7 @@
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { supabaseServer } from '@/lib/supabase/server';
+import { parseTeacherChoice } from '@/lib/invites';
 
 const str = (f: FormData, k: string) => String(f.get(k) ?? '').trim();
 const optional = (f: FormData, k: string) => str(f, k) || null;
@@ -87,16 +88,20 @@ export async function createGroup(f: FormData) {
   const supabase = await supabaseServer();
   const days = f.getAll('days').map(Number).filter((d) => d >= 1 && d <= 7);
   if (!days.length) back('/school/groups', 'Choose the days');
-  const { data, error } = await supabase.rpc('create_group', {
+  const who = parseTeacherChoice(str(f, 'teacher_id'));
+  const common = {
     p_program: str(f, 'program_id'),
-    p_teacher: str(f, 'teacher_id'),
     p_days: days,
     p_time: str(f, 'time'),
     p_start: str(f, 'start'),
     p_capacity: Number(str(f, 'capacity') || 10),
     p_zoom: optional(f, 'zoom_url'),
     p_name: optional(f, 'name'),
-  });
+  };
+  // an invited teacher who has not signed in yet gets the group on her first sign-in
+  const { data, error } = who.invite
+    ? await supabase.rpc('create_group_for_invite', { ...common, p_invite: who.invite })
+    : await supabase.rpc('create_group', { ...common, p_teacher: who.teacher });
   if (error) back('/school/groups', error.message);
   back(`/groups/${data}`);
 }
@@ -104,14 +109,18 @@ export async function createGroup(f: FormData) {
 export async function updateGroup(f: FormData) {
   const id = str(f, 'id');
   const supabase = await supabaseServer();
-  const teacherId = str(f, 'teacher_id');
+  const who = parseTeacherChoice(str(f, 'teacher_id'));
   const zoom = optional(f, 'zoom_url');
+  // the teacher (or an invited one) for the group and its lessons to come
+  const { error: e1 } = await supabase.rpc('set_group_teacher', {
+    gid: id, p_teacher: who.teacher ?? null, p_invite: who.invite ?? null,
+  });
+  if (e1) back(`/groups/${id}`, e1.message);
   const { error } = await supabase.from('groups').update({
-    name: str(f, 'name'), teacher_id: teacherId, zoom_url: zoom, capacity: Number(str(f, 'capacity') || 10),
+    name: str(f, 'name'), zoom_url: zoom, capacity: Number(str(f, 'capacity') || 10),
   }).eq('id', id);
   if (error) back(`/groups/${id}`, error.message);
-  // upcoming lessons follow the group
-  const { error: e2 } = await supabase.from('lessons').update({ teacher_id: teacherId, zoom_url: zoom })
+  const { error: e2 } = await supabase.from('lessons').update({ zoom_url: zoom })
     .eq('group_id', id).eq('status', 'scheduled').gt('starts_at', new Date().toISOString());
   back(`/groups/${id}`, e2?.message);
 }

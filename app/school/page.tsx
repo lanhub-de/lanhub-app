@@ -137,7 +137,7 @@ export default async function SchoolOverview() {
             {late.map((l) => (
               <Link key={l.id} href="/school/lessons" className="attention soft">
                 <strong>{l.students?.full_name ?? l.groups?.name ?? ''}</strong>
-                <span>{t('unmarkedHint', { teacher: l.profiles?.full_name ?? '', date: fmtDateTime(l.starts_at, profile.locale) })}</span>
+                <span>{t('unmarkedHint', { teacher: l.pending_teacher ? `${l.invites?.full_name ?? l.pending_teacher} · ${t('pending')}` : l.profiles?.full_name ?? '', date: fmtDateTime(l.starts_at, profile.locale) })}</span>
               </Link>
             ))}
           </div>

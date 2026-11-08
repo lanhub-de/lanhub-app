@@ -673,3 +673,68 @@ test('an invite can carry attendance rates and a monthly extra', async () => {
   const [z] = await rows(u.id, 'select label, amount, currency, starts_on::text as s from public.teacher_allowances');
   assert.deepEqual([z.label, Number(z.amount), z.currency, z.s], ['Zoom', 913, 'UAH', '2026-11-01']);
 });
+
+test('groups and students can wait for an invited teacher and move to her on first sign-in', async () => {
+  await rows(ids.owner,
+    `insert into public.invites (email, full_name, role, pending_rates) values
+     ('olena@lanhub.test', 'Олена', 'teacher',
+      '[{"kind":"group","amount":600,"steps":[{"min_present":3,"amount":750}]},
+        {"kind":"individual","market":"intl","amount":600}]')`);
+  const [{ create_group_for_invite: gid }] = await rows(ids.owner,
+    `select public.create_group_for_invite($1, 'olena@lanhub.test', array[2, 4], '18:00', '2026-10-06')`, [ids.flow3]);
+  const [o] = await rows(ids.owner,
+    'select pending_teacher, pending_teacher_name, lessons_total from public.group_overview where id = $1', [gid]);
+  assert.deepEqual([o.pending_teacher, o.pending_teacher_name, o.lessons_total], ['olena@lanhub.test', 'Олена', 8]);
+  const [{ c: waiting }] = await rows(ids.owner,
+    `select count(*)::int as c from public.lessons where group_id = $1 and pending_teacher = 'olena@lanhub.test'`, [gid]);
+  assert.equal(waiting, 8);
+  assert.ok(await fails(ids.nadiia,
+    `select public.create_group_for_invite($1, 'olena@lanhub.test', array[1], '10:00', '2026-11-02')`, [ids.flow3]));
+
+  const studs = await rows(ids.owner,
+    `insert into public.students (full_name, market) select 'O' || n, 'intl' from generate_series(1, 3) n returning id`);
+  for (const s of studs) {
+    await rows(ids.owner, 'insert into public.group_members (group_id, student_id) values ($1, $2)', [gid, s.id]);
+  }
+  const [solo] = await rows(ids.owner,
+    `insert into public.students (full_name, market, level, pending_teacher)
+     values ('Solo', 'intl', 'A2', 'olena@lanhub.test') returning id`);
+  await rows(ids.owner, 'insert into public.packages (student_id, lessons_total) values ($1, 8)', [solo.id]);
+
+  // the school marks what already happened: no pay while she has not signed in
+  const [first] = await rows(ids.owner, 'select id from public.lessons where group_id = $1 order by starts_at limit 1', [gid]);
+  await rows(ids.owner, `update public.lessons set status = 'done' where id = $1`, [first.id]);
+  const [ind] = await rows(ids.owner,
+    `insert into public.lessons (teacher_id, student_id, starts_at, status, pending_teacher)
+     values ($1, $2, '2026-10-20 10:00+02', 'done', 'olena@lanhub.test') returning id, package_id`, [ids.owner, solo.id]);
+  assert.ok(ind.package_id);
+  assert.equal((await rows(ids.owner, 'select * from public.lesson_pay where lesson_id in ($1, $2)', [first.id, ind.id])).length, 0);
+
+  // first sign-in
+  const { rows: [u] } = await db.query(
+    `insert into auth.users (id, email) values (gen_random_uuid(), 'olena@lanhub.test') returning id`);
+  const [g] = await rows(u.id, 'select teacher_id, pending_teacher from public.groups where id = $1', [gid]);
+  assert.deepEqual([g.teacher_id, g.pending_teacher], [u.id, null]);
+  const [{ c: mine }] = await rows(u.id,
+    'select count(*)::int as c from public.lessons where group_id = $1 and teacher_id = $2', [gid, u.id]);
+  assert.equal(mine, 8);
+  const pays = await rows(u.id, 'select lesson_id, amount from public.lesson_pay order by amount');
+  assert.deepEqual(pays.map((p) => Number(p.amount)).sort(), [600, 750]);
+  const [s] = await rows(u.id, 'select teacher_id, pending_teacher from public.students where id = $1', [solo.id]);
+  assert.deepEqual([s.teacher_id, s.pending_teacher], [u.id, null]);
+});
+
+test('the school hands a group from an invite to a teacher and back', async () => {
+  await rows(ids.owner,
+    `insert into public.invites (email, full_name, role) values ('daryna@lanhub.test', 'Дарина', 'teacher')`);
+  const [{ create_group: gid }] = await rows(ids.manager,
+    `select public.create_group($1, $2, array[1, 3], '17:00', '2026-12-07')`, [ids.flow3, ids.toma]);
+  await rows(ids.manager, `select public.set_group_teacher($1, null, 'daryna@lanhub.test')`, [gid]);
+  const [{ c }] = await rows(ids.manager,
+    `select count(*)::int as c from public.lessons where group_id = $1 and pending_teacher = 'daryna@lanhub.test'`, [gid]);
+  assert.equal(c, 8);
+  await rows(ids.manager, 'select public.set_group_teacher($1, $2, null)', [gid, ids.toma]);
+  const [g] = await rows(ids.manager, 'select teacher_id, pending_teacher from public.groups where id = $1', [gid]);
+  assert.deepEqual([g.teacher_id, g.pending_teacher], [ids.toma, null]);
+  assert.ok(await fails(ids.toma, `select public.set_group_teacher($1, null, 'daryna@lanhub.test')`, [gid]));
+});

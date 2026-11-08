@@ -5,6 +5,7 @@ import LessonRow from '@/components/LessonRow';
 import { requireProfile, STAFF } from '@/lib/session';
 import { fmtDate, fmtMoney } from '@/lib/i18n';
 import { LESSON_SELECT, toView, type LessonDb } from '@/lib/lessons';
+import { INVITE, pendingTeachers } from '@/lib/invites';
 import { addPackage, addToGroup, deleteStudent, extendPackage, updateStudent } from '../../actions';
 
 export default async function StudentPage({
@@ -15,7 +16,7 @@ export default async function StudentPage({
   const sp = await searchParams;
   const canSell = profile.role === 'owner' || profile.role === 'manager';
 
-  const [student, teachers, packages, payments, lessons, groups, memberships] = await Promise.all([
+  const [student, teachers, packages, payments, lessons, groups, memberships, invited] = await Promise.all([
     supabase.from('students').select('*').eq('id', id).maybeSingle(),
     supabase.from('profiles').select('id, full_name').in('role', ['teacher', 'head_teacher', 'owner']).eq('active', true).order('full_name'),
     supabase.from('package_usage').select('*').eq('student_id', id),
@@ -23,6 +24,7 @@ export default async function StudentPage({
     supabase.from('lessons').select(LESSON_SELECT).eq('student_id', id).order('starts_at', { ascending: false }).limit(30).returns<LessonDb[]>(),
     supabase.from('groups').select('id, name').eq('active', true).order('name'),
     supabase.from('group_members').select('group_id').eq('student_id', id),
+    pendingTeachers(supabase),
   ]);
   if (!student.data) notFound();
   const s = student.data;
@@ -89,7 +91,7 @@ export default async function StudentPage({
           <h2 style={{ marginTop: 12 }}>{t('journal')}</h2>
           {(lessons.data ?? []).length === 0 && <p className="muted">{t('nothingHere')}</p>}
           {(lessons.data ?? []).map((l) => (
-            <LessonRow key={l.id} lesson={toView(l, true)} t={t} locale={profile.locale} returnTo={`/school/students/${id}`} canMark />
+            <LessonRow key={l.id} lesson={toView(l, true, t('pending'))} t={t} locale={profile.locale} returnTo={`/school/students/${id}`} canMark />
           ))}
         </section>
 
@@ -99,9 +101,10 @@ export default async function StudentPage({
             <label>{t('name')}<input name="full_name" defaultValue={s.full_name} required /></label>
             <label>{t('level')}<input name="level" defaultValue={s.level ?? ''} /></label>
             <label>{t('teacher')}
-              <select name="teacher_id" defaultValue={s.teacher_id ?? ''}>
+              <select name="teacher_id" defaultValue={s.pending_teacher ? `${INVITE}${s.pending_teacher}` : s.teacher_id ?? ''}>
                 <option value="">…</option>
                 {(teachers.data ?? []).map((p) => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+                {invited.map((i) => <option key={i.email} value={`${INVITE}${i.email}`}>{i.full_name} · {t('pending')}</option>)}
               </select>
             </label>
             <label>{t('market')}

@@ -84,7 +84,7 @@ export default async function LessonsPage({
       <div className="stack">
         {(lessons.data ?? []).length === 0 && <p className="muted">{t('nothingHere')}</p>}
         {(lessons.data ?? []).map((l) => (
-          <LessonRow key={l.id} lesson={toView(l, true)} t={t} locale={profile.locale} returnTo={returnTo} canMark />
+          <LessonRow key={l.id} lesson={toView(l, true, t('pending'))} t={t} locale={profile.locale} returnTo={returnTo} canMark />
         ))}
       </div>
     </Shell>

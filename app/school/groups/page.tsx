@@ -3,10 +3,12 @@ import Shell, { Flash } from '@/components/Shell';
 import { requireProfile, STAFF } from '@/lib/session';
 import { fmtInTz } from '@/lib/i18n';
 import { createGroup, createProgram } from '@/app/groups/actions';
+import { INVITE, pendingTeachers } from '@/lib/invites';
 
 type Overview = {
   id: string; name: string; teacher_id: string | null; program_id: string | null; tz: string; active: boolean;
   capacity: number | null; members: number; lessons_total: number; lessons_done: number; first_at: string | null; next_at: string | null;
+  pending_teacher: string | null; pending_teacher_name: string | null;
 };
 
 export default async function GroupsPage({ searchParams }: { searchParams: Promise<{ e?: string }> }) {
@@ -14,12 +16,13 @@ export default async function GroupsPage({ searchParams }: { searchParams: Promi
   const sp = await searchParams;
   const canEditPrograms = profile.role === 'owner' || profile.role === 'head_teacher';
 
-  const [programs, lessonCounts, groups, people] = await Promise.all([
+  const [programs, lessonCounts, groups, people, invited] = await Promise.all([
     supabase.from('programs').select('id, title, level, active').eq('active', true).order('title'),
     supabase.from('program_lessons').select('program_id'),
-    supabase.from('group_overview').select('id, name, teacher_id, program_id, tz, active, capacity, members, lessons_total, lessons_done, first_at, next_at')
+    supabase.from('group_overview').select('id, name, teacher_id, program_id, tz, active, capacity, members, lessons_total, lessons_done, first_at, next_at, pending_teacher, pending_teacher_name')
       .eq('active', true).order('name').returns<Overview[]>(),
     supabase.from('profiles').select('id, full_name, role, active'),
+    pendingTeachers(supabase),
   ]);
 
   const nameOf = new Map((people.data ?? []).map((p) => [p.id, p.full_name]));
@@ -74,6 +77,7 @@ export default async function GroupsPage({ searchParams }: { searchParams: Promi
               <select name="teacher_id" required defaultValue="">
                 <option value="" disabled>…</option>
                 {teachers.map((p) => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+                {invited.map((i) => <option key={i.email} value={`${INVITE}${i.email}`}>{i.full_name} · {t('pending')}</option>)}
               </select>
             </label>
             <label>{t('time')} ({t('groupTime')})<input name="time" type="time" required defaultValue="20:10" /></label>
@@ -110,7 +114,7 @@ export default async function GroupsPage({ searchParams }: { searchParams: Promi
             <Link key={g.id} href={`/groups/${g.id}`} className="card group-row">
               <div className="group-main">
                 <strong style={{ fontSize: 17 }}>{g.name}</strong>
-                <span className="muted">{nameOf.get(g.teacher_id ?? '') ?? '—'}{g.program_id ? ` · ${programTitle.get(g.program_id) ?? ''}` : ''}</span>
+                <span className="muted">{g.pending_teacher ? `${g.pending_teacher_name ?? g.pending_teacher} · ${t('pending')}` : nameOf.get(g.teacher_id ?? '') ?? '—'}{g.program_id ? ` · ${programTitle.get(g.program_id) ?? ''}` : ''}</span>
               </div>
               <div className="group-cell">
                 <span style={{ fontWeight: 600 }}>{progress}</span>

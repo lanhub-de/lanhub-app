@@ -2,17 +2,23 @@ import Link from 'next/link';
 import Shell, { Flash } from '@/components/Shell';
 import { requireProfile, STAFF } from '@/lib/session';
 import { addGroup, addStudent } from '../actions';
+import { INVITE, pendingTeachers } from '@/lib/invites';
 
 export default async function StudentsPage({ searchParams }: { searchParams: Promise<{ e?: string; q?: string }> }) {
   const { supabase, profile, t } = await requireProfile(STAFF);
   const sp = await searchParams;
-  const [students, teachers, packages, groups] = await Promise.all([
-    supabase.from('students').select('id, full_name, level, market, teacher_id, status').order('full_name'),
+  const [students, teachers, packages, groups, invited] = await Promise.all([
+    supabase.from('students').select('id, full_name, level, market, teacher_id, pending_teacher, status').order('full_name'),
     supabase.from('profiles').select('id, full_name, role').in('role', ['teacher', 'head_teacher', 'owner']).eq('active', true).order('full_name'),
     supabase.from('package_usage').select('student_id, lessons_left, status'),
-    supabase.from('groups').select('id, name, level, kind, teacher_id').eq('active', true).order('name'),
+    supabase.from('groups').select('id, name, level, kind, teacher_id, pending_teacher').eq('active', true).order('name'),
+    pendingTeachers(supabase),
   ]);
   const teacherName = new Map((teachers.data ?? []).map((p) => [p.id, p.full_name]));
+  const invitedName = new Map(invited.map((i) => [i.email, i.full_name]));
+  const whoTeaches = (x: { teacher_id: string | null; pending_teacher: string | null }) => x.pending_teacher
+    ? `${invitedName.get(x.pending_teacher) ?? x.pending_teacher} · ${t('pending')}`
+    : x.teacher_id ? teacherName.get(x.teacher_id) ?? '' : '';
   const active = new Map<string, number>();
   for (const p of packages.data ?? []) if (p.status === 'active') active.set(p.student_id, p.lessons_left);
   const q = (sp.q ?? '').toLowerCase();
@@ -32,6 +38,7 @@ export default async function StudentsPage({ searchParams }: { searchParams: Pro
             <select name="teacher_id" defaultValue="">
               <option value="">…</option>
               {(teachers.data ?? []).map((p) => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+              {invited.map((i) => <option key={i.email} value={`${INVITE}${i.email}`}>{i.full_name} · {t('pending')}</option>)}
             </select>
           </label>
           <label>{t('market')}
@@ -60,7 +67,7 @@ export default async function StudentsPage({ searchParams }: { searchParams: Pro
               <tr key={s.id}>
                 <td><Link href={`/school/students/${s.id}`}>{s.full_name}</Link>{s.status !== 'active' && <span className="muted"> · {s.status}</span>}</td>
                 <td>{s.level ?? ''}</td>
-                <td>{s.teacher_id ? teacherName.get(s.teacher_id) ?? '' : ''}</td>
+                <td>{whoTeaches(s)}</td>
                 <td>{t(s.market === 'intl' ? 'market_intl' : 'market_ua')}</td>
                 <td className="num">
                   {active.has(s.id)
@@ -81,7 +88,7 @@ export default async function StudentsPage({ searchParams }: { searchParams: Pro
             {(groups.data ?? []).map((g) => (
               <div key={g.id} className="spread">
                 <span>{g.name}{g.level ? ` · ${g.level}` : ''} <span className="muted">· {t(`kind_${g.kind}` as never)}</span></span>
-                <span className="muted">{g.teacher_id ? teacherName.get(g.teacher_id) : ''}</span>
+                <span className="muted">{whoTeaches(g)}</span>
               </div>
             ))}
             <form action={addGroup} className="form">

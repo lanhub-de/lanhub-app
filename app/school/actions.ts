@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { supabaseServer } from '@/lib/supabase/server';
 import { canSendMail, sendInvite } from '@/lib/mail';
 import { currentMonthStart } from '@/lib/i18n';
+import { parseTeacherChoice } from '@/lib/invites';
 
 function done(path: string, error?: string | null) {
   revalidatePath(path);
@@ -13,6 +14,12 @@ function done(path: string, error?: string | null) {
 const str = (f: FormData, k: string) => String(f.get(k) ?? '').trim();
 const optional = (f: FormData, k: string) => str(f, k) || null;
 
+// A student's teacher, or an invited teacher who has not signed in yet.
+function teacherFields(value: string) {
+  const who = parseTeacherChoice(value);
+  return { teacher_id: who.teacher ?? null, pending_teacher: who.invite ?? null };
+}
+
 export async function addStudent(f: FormData) {
   const supabase = await supabaseServer();
   const { data, error } = await supabase.from('students').insert({
@@ -20,7 +27,7 @@ export async function addStudent(f: FormData) {
     level: optional(f, 'level'),
     market: str(f, 'market') === 'intl' ? 'intl' : 'ua',
     locale: 'en',
-    teacher_id: optional(f, 'teacher_id'),
+    ...teacherFields(str(f, 'teacher_id')),
     email: optional(f, 'email'),
     contact: optional(f, 'contact'),
   }).select('id').single();
@@ -35,7 +42,7 @@ export async function updateStudent(f: FormData) {
     full_name: str(f, 'full_name'),
     level: optional(f, 'level'),
     market: str(f, 'market') === 'intl' ? 'intl' : 'ua',
-    teacher_id: optional(f, 'teacher_id'),
+    ...teacherFields(str(f, 'teacher_id')),
     email: optional(f, 'email'),
     contact: optional(f, 'contact'),
     status: str(f, 'status') || 'active',
