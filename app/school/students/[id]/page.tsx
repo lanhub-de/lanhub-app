@@ -126,7 +126,12 @@ export default async function StudentPage({
 
           <div className="card stack">
             <h2>{t('kind_group')}</h2>
-            {(groups.data ?? []).filter((g) => inGroups.has(g.id)).map((g) => <span key={g.id}>{g.name}</span>)}
+            {(groups.data ?? []).filter((g) => inGroups.has(g.id)).map((g) => (
+              <span key={g.id} className="spread">
+                <Link href={`/groups/${g.id}`}>{g.name}</Link>
+                <Link href={`/groups/${g.id}/preview`} className="btn small">{t('c_viewAsStudent')}</Link>
+              </span>
+            ))}
             <form action={addToGroup} className="row">
               <input type="hidden" name="student_id" value={id} />
               <select name="group_id" required defaultValue="">

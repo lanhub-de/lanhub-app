@@ -224,3 +224,7 @@ details > summary::-webkit-details-marker { display: none; }
   .chat-messages { max-height: calc(100vh - 260px); }
 }
 tr.row-open td { background: var(--rose); }
+.cabinet-switch { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 14px; }
+.cabinet-switch a { padding: 5px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); color: var(--ink); text-decoration: none; font-size: 14px; }
+.cabinet-switch a.active { background: var(--red); border-color: var(--red); color: #fff; font-weight: 600; }
+.pay-lines { margin-top: 12px; display: flex; flex-direction: column; gap: 6px; font-size: 14px; border-top: 1px solid var(--sand); padding-top: 10px; }

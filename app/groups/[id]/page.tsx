@@ -73,7 +73,9 @@ export default async function GroupPage({ params, searchParams }: {
         </span>
       </div>
       <p className="muted" style={{ marginTop: 0 }}>
-        {teacherLabel}
+        {(profile.role === 'owner' || profile.role === 'head_teacher')
+          ? <Link href={`/teacher?as=${encodeURIComponent(g.pending_teacher ? `${INVITE}${g.pending_teacher}` : g.teacher_id ?? '')}`}>{teacherLabel}</Link>
+          : teacherLabel}
         {days ? ` · ${days} ${String(g.start_time ?? '').slice(0, 5)} (${t('groupTime')})` : ''}
         {program.data ? ` · ${program.data.title}` : ''}
         {g.zoom_url ? <> · <a href={g.zoom_url} target="_blank" rel="noreferrer">Zoom</a></> : null}

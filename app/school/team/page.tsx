@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import Shell, { Flash } from '@/components/Shell';
 import { requireProfile } from '@/lib/session';
 import { currentMonthStart, fmtDate, fmtMoney, fmtMonth } from '@/lib/i18n';
@@ -70,6 +71,9 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
               <span>{i.full_name} <span className="muted">· {i.email} · {t(`role_${i.role}` as never)}</span></span>
               <span className="row">
                 <span className="pill">{t('pending')}</span>
+                {['teacher', 'head_teacher'].includes(i.role) && (
+                  <Link href={`/teacher?as=${encodeURIComponent(`invite:${i.email}`)}`} className="btn small">{t('openCabinet')}</Link>
+                )}
                 <form action={resendInvite}>
                   <input type="hidden" name="email" value={i.email} />
                   <button className="small" type="submit">{t('sendInvite')}</button>
@@ -89,6 +93,9 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
                 <span style={{ fontWeight: 600 }}>{p.full_name} <span className="muted">· {t(`role_${p.role}` as never)} · {p.viewer_code}</span></span>
                 <span className="muted">{p.email}{!p.active ? ' · off' : ''}</span>
               </summary>
+              {p.id !== profile.id && (
+                <p style={{ margin: '12px 0 0' }}><Link href={`/teacher?as=${p.id}`} className="btn small">{t('openCabinet')}</Link></p>
+              )}
               <h2 style={{ marginTop: 12 }}>{t('rates')}</h2>
               <div className="table-wrap">
                 <table>
