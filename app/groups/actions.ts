@@ -138,7 +138,7 @@ export async function addMember(f: FormData) {
     if (!name) back(`/groups/${groupId}`, 'Choose a student or type a name');
     const intl = str(f, 'market') !== 'ua';
     const { data, error } = await supabase.from('students').insert({
-      full_name: name, level: optional(f, 'level'), market: intl ? 'intl' : 'ua', locale: intl ? 'en' : 'uk',
+      full_name: name, level: optional(f, 'level'), market: intl ? 'intl' : 'ua', locale: 'en',
       contact: optional(f, 'contact'), email: optional(f, 'email'),
     }).select('id').single();
     if (error) back(`/groups/${groupId}`, error.message);

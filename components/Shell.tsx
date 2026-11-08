@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import type { Profile } from '@/lib/session';
 import type { T } from '@/lib/i18n';
-import { signOut } from '@/app/actions';
+import { setLocale, signOut } from '@/app/actions';
 
 type NavItem = { href: string; label: string };
 
@@ -71,6 +71,13 @@ export default function Shell({
             <span className="avatar" aria-hidden="true">{initial}</span>
             <span>{profile.full_name} · <span className="muted">{t(`role_${profile.role}`)}</span></span>
           </Link>
+          <form action={setLocale} className="lang-switch">
+            <input type="hidden" name="locale" value={profile.locale === 'en' ? 'uk' : 'en'} />
+            <button type="submit" className="small" aria-label={profile.locale === 'en' ? 'Українська' : 'English'}>
+              <span className={profile.locale === 'en' ? 'on' : ''}>EN</span>
+              <span className={profile.locale === 'uk' ? 'on' : ''}>UA</span>
+            </button>
+          </form>
           <form action={signOut}><button className="small" type="submit">{t('signOut')}</button></form>
         </div>
       </header>

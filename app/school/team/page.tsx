@@ -53,7 +53,7 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
             </select>
           </label>
           <label>{t('language')}
-            <select name="locale" defaultValue="uk"><option value="uk">Українська</option><option value="en">English</option></select>
+            <select name="locale" defaultValue="en"><option value="en">English</option><option value="uk">Українська</option></select>
           </label>
           <button className="primary" type="submit">{t('invite')}</button>
         </form>

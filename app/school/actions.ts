@@ -17,7 +17,7 @@ export async function addStudent(f: FormData) {
     full_name: str(f, 'full_name'),
     level: optional(f, 'level'),
     market: str(f, 'market') === 'intl' ? 'intl' : 'ua',
-    locale: str(f, 'market') === 'intl' ? 'en' : 'uk',
+    locale: 'en',
     teacher_id: optional(f, 'teacher_id'),
     email: optional(f, 'email'),
     contact: optional(f, 'contact'),
@@ -116,7 +116,7 @@ export async function invitePerson(f: FormData) {
     email: str(f, 'email').toLowerCase(),
     full_name: str(f, 'full_name'),
     role,
-    locale: str(f, 'locale') === 'en' ? 'en' : 'uk',
+    locale: str(f, 'locale') === 'uk' ? 'uk' : 'en',
     pending_rates: teaches ? TEMPLATES[str(f, 'template')] ?? [] : [],
   });
   done('/school/team', error?.message);
