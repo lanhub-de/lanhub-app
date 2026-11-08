@@ -2,17 +2,20 @@ import Link from 'next/link';
 import type { Profile } from '@/lib/session';
 import type { T } from '@/lib/i18n';
 import { setLocale, signOut } from '@/app/actions';
+import ChatBadge from '@/components/ChatBadge';
 
 type NavItem = { href: string; label: string };
 
 function navFor(profile: Profile, t: T): NavItem[] {
   const teaching = [{ href: '/teacher', label: t('navToday') }];
   const library = [{ href: '/library', label: t('navLibrary') }];
+  const chat = { href: '/chat', label: t('navChat') };
   switch (profile.role) {
     case 'owner':
       return [
         { href: '/school', label: t('navOverview') },
         ...teaching,
+        chat,
         { href: '/school/students', label: t('navStudents') },
         { href: '/school/groups', label: t('navGroups') },
         { href: '/school/lessons', label: t('navLessons') },
@@ -24,6 +27,7 @@ function navFor(profile: Profile, t: T): NavItem[] {
       return [
         { href: '/school', label: t('navOverview') },
         ...teaching,
+        chat,
         { href: '/school/students', label: t('navStudents') },
         { href: '/school/groups', label: t('navGroups') },
         { href: '/school/lessons', label: t('navLessons') },
@@ -32,30 +36,32 @@ function navFor(profile: Profile, t: T): NavItem[] {
     case 'manager':
       return [
         { href: '/school', label: t('navOverview') },
+        chat,
         { href: '/school/students', label: t('navStudents') },
         { href: '/school/groups', label: t('navGroups') },
         { href: '/school/lessons', label: t('navLessons') },
       ];
     case 'teacher':
-      return [...teaching, ...library];
+      return [...teaching, chat, ...library];
     case 'student':
-      return [{ href: '/me', label: t('navCourse') }];
+      return [{ href: '/me', label: t('navCourse') }, chat];
     default:
       return [];
   }
 }
 
 // School staff get a side menu (it becomes a scrolling row on a phone);
-// teachers, with two sections, get them in the top bar.
+// teachers and students, with up to three sections, get them in the top bar.
 export default function Shell({
   profile, t, active, children,
 }: { profile: Profile; t: T; active: string; children: React.ReactNode }) {
   const items = navFor(profile, t);
-  const side = items.length > 2;
+  const side = items.length > 3;
   const initial = (profile.full_name.trim().charAt(0) || 'L').toUpperCase();
   const links = items.map((item) => (
     <Link key={item.href} href={item.href} className={active === item.href ? 'active' : ''}>
       {item.label}
+      {item.href === '/chat' && <ChatBadge />}
     </Link>
   ));
   return (

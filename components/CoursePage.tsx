@@ -77,6 +77,12 @@ export default async function CoursePage({
             {g.teacher_name ? ` · ${t('c_with', { teacher: g.teacher_name })}` : ''}
             {items.length ? ` · ${t('c_doneOf', { n: doneCount, m: items.length })}` : ''}
           </p>
+          {!preview && (
+            <div className="row" style={{ marginTop: 10 }}>
+              <Link href={`/chat?g=${g.id}`} className="btn small">💬 {t('chatKindGroup')}</Link>
+              <Link href="/chat" className="btn small">{t('navChat')}</Link>
+            </div>
+          )}
         </div>
         {next?.slot ? (
           <section className="next-card" aria-label={t('c_next')}>

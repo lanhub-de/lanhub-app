@@ -61,7 +61,10 @@ export default async function GroupPage({ params, searchParams }: {
       <p style={{ marginTop: 0 }}><Link href={back}>← {staff ? t('navGroups') : t('navToday')}</Link></p>
       <div className="spread" style={{ alignItems: 'flex-start' }}>
         <h1 style={{ marginBottom: 6 }}>{g.name}</h1>
-        {g.program_id && <Link href={`/groups/${g.id}/preview`} className="btn small">{t('c_viewAsStudent')}</Link>}
+        <span className="row">
+          <Link href={`/chat?g=${g.id}`} className="btn small">💬 {t('chatKindGroup')}</Link>
+          {g.program_id && <Link href={`/groups/${g.id}/preview`} className="btn small">{t('c_viewAsStudent')}</Link>}
+        </span>
       </div>
       <p className="muted" style={{ marginTop: 0 }}>
         {teacherLabel}

@@ -53,3 +53,34 @@ export async function sendInvite(to: string, name: string, role: string, locale:
     return String(e);
   }
 }
+
+// "You have a new message" for people without notifications switched on.
+export async function sendChatNotice(
+  to: string, name: string, locale: string, from: string, chat: string, snippet: string, path: string,
+): Promise<string | null> {
+  const key = process.env.RESEND_API_KEY;
+  if (!key) return 'RESEND_API_KEY is not set';
+  const uk = locale === 'uk';
+  const t = uk
+    ? { subject: `Нове повідомлення в LanHub: ${from}`, hi: `Привіт, ${esc(name)}!`, body: `${esc(from)} написав(-ла) тобі${chat ? ` у чаті «${esc(chat)}»` : ''}:`, button: 'Відповісти в LanHub', tip: 'Увімкни сповіщення в чаті LanHub, і нові повідомлення приходитимуть одразу на телефон чи комп’ютер.' }
+    : { subject: `New message in LanHub from ${from}`, hi: `Hi ${esc(name)}!`, body: `${esc(from)} wrote to you${chat ? ` in “${esc(chat)}”` : ''}:`, button: 'Reply in LanHub', tip: 'Switch on notifications in the LanHub chat to get new messages on your phone or computer at once.' };
+  const html = `<div style="font-family:Arial,Helvetica,sans-serif;max-width:480px;margin:0 auto;padding:24px;color:#1f1a17">
+  <p style="font-size:22px;font-weight:700;color:#a30000;margin:0 0 20px">LanHub</p>
+  <p style="font-size:16px;font-weight:700;margin:0 0 10px">${t.hi}</p>
+  <p style="font-size:16px;line-height:1.5;margin:0 0 10px">${t.body}</p>
+  <p style="font-size:16px;line-height:1.5;margin:0 0 22px;padding:12px 14px;background:#f5efe8;border-radius:10px">${esc(snippet)}</p>
+  <p style="margin:0 0 24px"><a href="${SITE}${path}" style="display:inline-block;background:#a30000;color:#ffffff;text-decoration:none;font-weight:700;padding:14px 28px;border-radius:10px">${t.button}</a></p>
+  <p style="font-size:13px;color:#6b625b;margin:0">${t.tip}</p>
+</div>`;
+  try {
+    const r = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: FROM, to: [to], subject: t.subject, html }),
+    });
+    if (!r.ok) return `Resend: ${r.status} ${(await r.text()).slice(0, 200)}`;
+    return null;
+  } catch (e) {
+    return String(e);
+  }
+}

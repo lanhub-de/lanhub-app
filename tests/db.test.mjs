@@ -20,7 +20,11 @@ const SUPABASE_STUB = `
   create schema storage;
   create table storage.buckets (id text primary key, name text, public boolean, file_size_limit bigint);
   create table storage.objects (bucket_id text, name text, owner uuid);
+  create function storage.foldername(name text) returns text[] language sql immutable as
+    $$ select (string_to_array(name, '/'))[1:array_length(string_to_array(name, '/'), 1) - 1] $$;
   alter table storage.objects enable row level security;
+  grant usage on schema storage to authenticated;
+  grant select, insert, delete on storage.objects to authenticated;
   grant usage on schema auth to authenticated, anon;
   grant execute on function auth.uid() to authenticated, anon;
 `;
@@ -737,4 +741,91 @@ test('the school hands a group from an invite to a teacher and back', async () =
   const [g] = await rows(ids.manager, 'select teacher_id, pending_teacher from public.groups where id = $1', [gid]);
   assert.deepEqual([g.teacher_id, g.pending_teacher], [ids.toma, null]);
   assert.ok(await fails(ids.toma, `select public.set_group_teacher($1, null, 'daryna@lanhub.test')`, [gid]));
+});
+
+// ---------------------------------------------------------------------------
+// Chat
+// ---------------------------------------------------------------------------
+test('a group student gets her group chat, a chat with her teacher and one with the school', async () => {
+  await rows(ids.sarahLogin, 'select public.ensure_my_chats()');
+  const chats = await rows(ids.sarahLogin, 'select kind, title, mine from public.my_chats() order by kind, title');
+  const kinds = chats.map((c) => `${c.kind}:${c.title}`);
+  assert.ok(kinds.includes('direct:Тома'));
+  assert.ok(kinds.includes('school:LanHub'));
+  assert.ok(kinds.some((k) => k.startsWith('group:German Activation · Flow 3')));
+  assert.ok(chats.every((c) => c.mine));
+});
+
+test('group chat: members write and read, the head teacher looks in, others see nothing', async () => {
+  const [{ start_chat: cid }] = await rows(ids.sarahLogin, `select public.start_chat('group', $1)`, [ids.g3]);
+  ids.g3chat = cid;
+  await rows(ids.sarahLogin, `insert into public.messages (conversation_id, body) values ($1, 'Hallo zusammen!')`, [cid]);
+  // the teacher sees it as unread
+  await rows(ids.toma, 'select public.ensure_my_chats()');
+  const [c] = await rows(ids.toma, 'select title, unread, last_body, mine from public.my_chats() where id = $1', [cid]);
+  assert.equal(c.unread, 1);
+  assert.equal(c.last_body, 'Hallo zusammen!');
+  assert.equal(c.mine, true);
+  await rows(ids.toma, 'select public.mark_chat_read($1)', [cid]);
+  const [{ my_unread_total: left }] = await rows(ids.toma, 'select public.my_unread_total()');
+  assert.equal(left, 0);
+  await rows(ids.toma, `insert into public.messages (conversation_id, body) values ($1, 'Hallo Sarah!')`, [cid]);
+
+  // the head teacher can read for quality control, but it is not her chat
+  const [seen] = await rows(ids.agata, 'select mine from public.my_chats() where id = $1', [cid]);
+  assert.equal(seen.mine, false);
+  assert.equal((await rows(ids.agata, 'select * from public.messages where conversation_id = $1', [cid])).length, 2);
+  // a manager and another teacher see nothing and cannot write
+  assert.equal((await rows(ids.manager, 'select * from public.messages where conversation_id = $1', [cid])).length, 0);
+  assert.equal((await rows(ids.nadiia, 'select * from public.messages where conversation_id = $1', [cid])).length, 0);
+  assert.ok(await fails(ids.nadiia, `insert into public.messages (conversation_id, body) values ($1, 'x')`, [cid]));
+  // nobody writes in someone else's name
+  assert.ok(await fails(ids.sarahLogin,
+    `insert into public.messages (conversation_id, sender_id, body) values ($1, $2, 'x')`, [cid, ids.toma]));
+});
+
+test('a student cannot open a chat with a teacher who does not teach her', async () => {
+  assert.ok(await fails(ids.sarahLogin, `select public.start_chat('direct', null, $1, $2)`, [ids.sarah, ids.nadiia]));
+  const [{ start_chat: ok }] = await rows(ids.sarahLogin, `select public.start_chat('direct', null, $1, $2)`, [ids.sarah, ids.toma]);
+  assert.ok(ok);
+});
+
+test('school chat: the student and the managers, not the teachers', async () => {
+  const [{ start_chat: cid }] = await rows(ids.sarahLogin, `select public.start_chat('school', null, $1)`, [ids.sarah]);
+  await rows(ids.sarahLogin, `insert into public.messages (conversation_id, body) values ($1, 'Wann zahle ich?')`, [cid]);
+  assert.equal((await rows(ids.manager, 'select * from public.messages where conversation_id = $1', [cid])).length, 1);
+  assert.equal((await rows(ids.toma, 'select * from public.messages where conversation_id = $1', [cid])).length, 0);
+  assert.equal((await rows(ids.agata, 'select * from public.messages where conversation_id = $1', [cid])).length, 0);
+  const [m] = await rows(ids.manager, 'select title, mine from public.my_chats() where id = $1', [cid]);
+  assert.deepEqual([m.title, m.mine], ['Sarah', true]);
+});
+
+test('notifications: only the server (with the secret) learns who to notify, emails at most every 6 hours', async () => {
+  await db.query(`insert into private.settings (key, value) values ('chat_secret', 's3cret')`);
+  const [msg] = await rows(ids.sarahLogin,
+    `insert into public.messages (conversation_id, body) values ($1, 'Frage zur Hausaufgabe') returning id`, [ids.g3chat]);
+  assert.ok(await fails(ids.sarahLogin, `select * from public.chat_notify_targets($1, 'guess')`, [msg.id]));
+  // Marco signed in earlier, so he is in the group chat too
+  const first = await rows(ids.sarahLogin,
+    `select full_name, send_email from public.chat_notify_targets($1, 's3cret') order by full_name`, [msg.id]);
+  assert.deepEqual(first.map((r) => [r.full_name, r.send_email]), [['Marco', true], ['Тома', true]]);
+  const again = await rows(ids.sarahLogin, `select send_email from public.chat_notify_targets($1, 's3cret')`, [msg.id]);
+  assert.deepEqual(again.map((r) => r.send_email), [false, false]);
+  // with notifications switched on there is no email, only the push
+  await rows(ids.toma, `insert into public.push_subscriptions (endpoint, p256dh, auth) values ('https://push.example/1', 'k', 'a')`);
+  await db.query('delete from public.chat_emails');
+  const withPush = await rows(ids.sarahLogin,
+    `select full_name, endpoint, send_email from public.chat_notify_targets($1, 's3cret') order by full_name`, [msg.id]);
+  assert.deepEqual(withPush.map((r) => [r.full_name, r.endpoint, r.send_email]),
+    [['Marco', null, true], ['Тома', 'https://push.example/1', false]]);
+  assert.equal((await rows(ids.sarahLogin, 'select * from public.push_subscriptions')).length, 0);
+});
+
+test('chat files: only people in the chat can upload and open them', async () => {
+  await as(ids.sarahLogin, (tx) => tx.query(
+    `insert into storage.objects (bucket_id, name) values ('chat', $1)`, [`${ids.g3chat}/voice.webm`]));
+  assert.ok(await fails(ids.nadiia,
+    `insert into storage.objects (bucket_id, name) values ('chat', $1)`, [`${ids.g3chat}/x.png`]));
+  assert.equal((await rows(ids.toma, `select * from storage.objects where bucket_id = 'chat'`)).length, 1);
+  assert.equal((await rows(ids.nadiia, `select * from storage.objects where bucket_id = 'chat'`)).length, 0);
 });
