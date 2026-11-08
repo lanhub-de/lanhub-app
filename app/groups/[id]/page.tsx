@@ -92,14 +92,14 @@ export default async function GroupPage({ params, searchParams }: {
           <div className="table-wrap">
             <table>
               <tbody>
-                {(lessons.data ?? []).map((l) => {
+                {(lessons.data ?? []).map((l, i) => {
                   const counted = ['done', 'no_show', 'late_cancel'].includes(l.status);
                   const missed = absentCount(l.id);
                   return (
                     <tr key={l.id} className={openLesson?.id === l.id ? 'row-open' : ''}>
-                      <td style={{ width: 36, fontWeight: 700, color: 'var(--red)' }}>{l.program_lessons?.n ?? ''}</td>
+                      <td style={{ width: 36, fontWeight: 700, color: 'var(--red)' }}>{l.program_lessons?.n ?? i + 1}</td>
                       <td>
-                        <Link href={`/groups/${g.id}?l=${l.id}#lesson`} style={{ fontWeight: 600, color: 'var(--ink)' }}>{l.program_lessons?.title ?? ''}</Link>
+                        <Link href={`/groups/${g.id}?l=${l.id}#lesson`} style={{ fontWeight: 600, color: 'var(--ink)' }}>{l.program_lessons?.title ?? t('c_lesson', { n: i + 1 })}</Link>
                         <div className="muted" style={{ fontSize: 13 }}>
                           {l.program_lessons?.topic ?? ''}
                           {l.teacher_id !== g.teacher_id ? ` · ${nameOf.get(l.teacher_id) ?? ''}` : ''}

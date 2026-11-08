@@ -964,3 +964,28 @@ test("a student's real name replaces the nickname on her card and her profile; a
   assert.equal((await rows(ids.owner, 'select full_name from public.students where id = $1', [ids.sarah]))[0].full_name, 'Sarah Miller');
   assert.ok(await fails(ids.stranger_teacher, `select public.set_student_name($1, 'X', 'Y')`, [ids.sarah]));
 });
+
+test('lessons before the pay start (paid outside the platform) get no pay line; later ones do', async () => {
+  await db.query(`insert into private.settings (key, value) values ('pay_start', '2026-11-01') on conflict (key) do update set value = excluded.value`);
+  const [old] = await rows(ids.owner,
+    `insert into public.lessons (teacher_id, student_id, starts_at, status) values ($1, $2, '2026-10-20 10:00+02', 'done') returning id`,
+    [ids.toma, ids.sarah]);
+  assert.equal((await rows(ids.owner, 'select * from public.lesson_pay where lesson_id = $1', [old.id])).length, 0);
+  const [fresh] = await rows(ids.owner,
+    `insert into public.lessons (teacher_id, student_id, starts_at, status) values ($1, $2, now() - interval '1 hour', 'done') returning id`,
+    [ids.toma, ids.sarah]);
+  assert.equal((await rows(ids.owner, 'select * from public.lesson_pay where lesson_id = $1', [fresh.id])).length, 1);
+  await db.query(`delete from private.settings where key = 'pay_start'`);
+});
+
+test('individual lessons are paid by the hour (90 minutes = 1.5 x), groups stay per lesson', async () => {
+  const [l] = await rows(ids.owner,
+    `insert into public.lessons (teacher_id, student_id, starts_at, duration_min, status) values ($1, $2, now() - interval '3 hours', 90, 'done') returning id`,
+    [ids.toma, ids.sarah]);
+  const [{ amount }] = await rows(ids.owner, 'select amount from public.lesson_pay where lesson_id = $1', [l.id]);
+  const [h] = await rows(ids.owner,
+    `insert into public.lessons (teacher_id, student_id, starts_at, duration_min, status) values ($1, $2, now() - interval '5 hours', 60, 'done') returning id`,
+    [ids.toma, ids.sarah]);
+  const [{ amount: base }] = await rows(ids.owner, 'select amount from public.lesson_pay where lesson_id = $1', [h.id]);
+  assert.equal(Number(amount), Number(base) * 1.5);
+});
