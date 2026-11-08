@@ -5,6 +5,8 @@ import { setLocale, signOut } from '@/app/actions';
 import ChatBadge from '@/components/ChatBadge';
 import StudentShell from '@/components/StudentShell';
 import LocaleMark from '@/components/LocaleMark';
+import BackButton from '@/components/BackButton';
+import { Suspense } from 'react';
 
 type NavItem = { href: string; label: string };
 
@@ -73,10 +75,13 @@ export default function Shell({
     <>
       <LocaleMark locale={profile.locale} />
       <header className="topbar">
-        <Link href="/" className="brand-wrap">
-          <span className="brand">LanHub</span>
-          <span className="brand-sub">{profile.role === 'teacher' ? t('teacherCabinet') : t('platformSchool')}</span>
-        </Link>
+        <div className="top-start">
+          <Suspense fallback={null}><BackButton label={t('back')} /></Suspense>
+          <Link href="/" className="brand-wrap">
+            <span className="brand">LanHub</span>
+            <span className="brand-sub">{profile.role === 'teacher' ? t('teacherCabinet') : t('platformSchool')}</span>
+          </Link>
+        </div>
         {!side && <nav className="pills" aria-label="LanHub">{links}</nav>}
         <div className="who">
           <Link href="/settings" className="who-link">

@@ -3,6 +3,8 @@ import type { Locale, T } from '@/lib/i18n';
 import { setLocale } from '@/app/actions';
 import ChatBadge from '@/components/ChatBadge';
 import LocaleMark from '@/components/LocaleMark';
+import BackButton from '@/components/BackButton';
+import { Suspense } from 'react';
 import { IconBook, IconCalendar, IconChat, IconHome } from '@/components/Icons';
 
 type Item = { href: string; label: string; icon: React.ReactNode; chat?: boolean };
@@ -49,10 +51,13 @@ export default function StudentShell({
         </div>
       )}
       <header className="topbar s-top">
-        <Link href={preview ? preview.back : '/me'} className="brand-wrap">
-          <span className="brand">LanHub</span>
-          <span className="brand-sub">{t('studentCabinet')}</span>
-        </Link>
+        <div className="top-start">
+          <Suspense fallback={null}><BackButton label={t('back')} /></Suspense>
+          <Link href={preview ? preview.back : '/me'} className="brand-wrap">
+            <span className="brand">LanHub</span>
+            <span className="brand-sub">{t('studentCabinet')}</span>
+          </Link>
+        </div>
         <nav className="pills s-pills" aria-label={t('studentMenu')}>{items.map((i) => link(i, false))}</nav>
         <div className="who">
           {!preview && (

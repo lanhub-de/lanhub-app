@@ -516,3 +516,10 @@ button.danger { color: var(--red); border-color: var(--red); background: var(--c
   .lib-row { flex-direction: column; gap: 6px; }
   .lib-meta { max-width: 100%; justify-content: flex-start; padding-left: 28px; }
 }
+
+/* Back button in the top bar (the installed app has no browser back) */
+.top-start { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.back-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); color: var(--ink); font-size: 14px; font-weight: 500; cursor: pointer; }
+.back-btn:hover { border-color: var(--red); color: var(--red); }
+.back-btn > span:first-child { font-size: 17px; line-height: 1; }
+@media (max-width: 700px) { .back-btn { padding: 6px 11px; } .back-btn .back-label { display: none; } }
