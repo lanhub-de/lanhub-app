@@ -989,3 +989,49 @@ test('individual lessons are paid by the hour (90 minutes = 1.5 x), groups stay 
   const [{ amount: base }] = await rows(ids.owner, 'select amount from public.lesson_pay where lesson_id = $1', [h.id]);
   assert.equal(Number(amount), Number(base) * 1.5);
 });
+
+// ---------------------------------------------------------------------------
+// Library folders, team-only files, audio by page
+// ---------------------------------------------------------------------------
+test('library folders: the school makes them, one name per place, teachers browse them', async () => {
+  const [lanhub] = await rows(ids.agata, `insert into public.library_folders (name) values ('LanHub') returning id`);
+  const [a1] = await rows(ids.owner, `insert into public.library_folders (name, parent_id) values ('A1', $1) returning id`, [lanhub.id]);
+  assert.ok(a1.id);
+  assert.ok(await fails(ids.owner, `insert into public.library_folders (name, parent_id) values ('a1', $1)`, [lanhub.id]));
+  assert.ok(await fails(ids.nadiia, `insert into public.library_folders (name) values ('Мої')`));
+  assert.equal((await rows(ids.nadiia, 'select * from public.library_folders where parent_id = $1', [lanhub.id])).length, 1);
+  assert.equal((await rows(ids.sarahLogin, 'select * from public.library_folders')).length, 0);
+});
+
+test('team-only files (teacher guides): the team opens them, students never get them', async () => {
+  const [guide] = await rows(ids.agata,
+    `insert into public.files (title, storage_path, staff_only) values ('A1.1 методичка', 'library/a11-guide.pdf', true) returning id`);
+  assert.equal((await rows(ids.nadiia, 'select title from public.files where id = $1', [guide.id])).length, 1);
+  const [lesson] = await rows(ids.owner,
+    `insert into public.lessons (teacher_id, student_id, starts_at) values ($1, $2, now() + interval '2 days') returning id`,
+    [ids.toma, ids.sarah]);
+  const err = await fails(ids.toma, 'insert into public.lesson_files (lesson_id, file_id) values ($1, $2)', [lesson.id, guide.id]);
+  assert.match(err ?? '', /team only/);
+  assert.ok(await fails(ids.agata, 'insert into public.program_files (program_id, file_id) values ($1, $2)', [ids.flow3, guide.id]));
+  await rows(ids.agata, 'insert into public.program_files (program_id, file_id, for_students) values ($1, $2, false)', [ids.flow3, guide.id]);
+  assert.equal((await rows(ids.sarahLogin, 'select * from public.files where id = $1', [guide.id])).length, 0);
+  assert.ok(!(await rows(ids.sarahLogin, 'select title from public.course_files($1)', [ids.g3])).some((f) => f.title === 'A1.1 методичка'));
+  // a file turned team-only later disappears for the student too
+  const [book] = await rows(ids.agata,
+    `insert into public.files (title, storage_path) values ('Lektion A1.1', 'library/a11.pdf') returning id`);
+  await rows(ids.toma, 'insert into public.lesson_files (lesson_id, file_id) values ($1, $2)', [lesson.id, book.id]);
+  assert.equal((await rows(ids.sarahLogin, 'select * from public.files where id = $1', [book.id])).length, 1);
+  await rows(ids.agata, 'update public.files set staff_only = true where id = $1', [book.id]);
+  assert.equal((await rows(ids.sarahLogin, 'select * from public.files where id = $1', [book.id])).length, 0);
+});
+
+test('audio by page: the school links tracks to textbook pages, teachers play them, students see nothing', async () => {
+  const [book] = await rows(ids.agata,
+    `insert into public.files (title, storage_path) values ('Lektion A1.2', 'library/a12.pdf') returning id`);
+  const [track] = await rows(ids.agata,
+    `insert into public.files (title, storage_path, mime) values ('A1.2 трек 5', 'library/a12-5.mp3', 'audio/mpeg') returning id`);
+  await rows(ids.agata, `insert into public.file_audio (file_id, audio_id, page, label) values ($1, $2, 14, 'впр. 3')`, [book.id, track.id]);
+  assert.equal((await rows(ids.nadiia, 'select label from public.file_audio where file_id = $1', [book.id]))[0]?.label, 'впр. 3');
+  assert.ok(await fails(ids.nadiia, `insert into public.file_audio (file_id, audio_id, page) values ($1, $2, 2)`, [book.id, track.id]));
+  assert.equal((await rows(ids.sarahLogin, 'select * from public.file_audio')).length, 0);
+});

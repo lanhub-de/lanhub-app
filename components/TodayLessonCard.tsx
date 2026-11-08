@@ -7,7 +7,7 @@ import { attachLessonFile, detachLessonFile, moveLesson, saveLessonPlan, setLess
 import LessonFileUpload from '@/components/LessonFileUpload';
 import Submit from '@/components/Submit';
 
-export type FileRef = { id: string; title: string; level?: string | null };
+export type FileRef = { id: string; title: string; level?: string | null; group?: string };
 
 const OTHER = ['late_cancel', 'cancelled', 'force_majeure'];
 
@@ -137,9 +137,12 @@ export default function TodayLessonCard({
               <input type="hidden" name="return_to" value={returnTo} />
               <select name="file_id" required defaultValue="">
                 <option value="" disabled>…</option>
-                {library.filter((f) => !materials.some((m) => m.id === f.id)).map((f) => (
-                  <option key={f.id} value={f.id}>{f.title}{f.level ? ` · ${f.level}` : ''}</option>
-                ))}
+                {[...new Set(library.map((f) => f.group ?? ''))].map((g) => {
+                  const opts = library.filter((f) => (f.group ?? '') === g && !materials.some((m) => m.id === f.id)).map((f) => (
+                    <option key={f.id} value={f.id}>{f.title}{f.level && !g.includes(f.level) ? ` · ${f.level}` : ''}</option>
+                  ));
+                  return g ? <optgroup key={g} label={g}>{opts}</optgroup> : opts;
+                })}
               </select>
               <Submit className="primary small">{t('add')}</Submit>
             </form>

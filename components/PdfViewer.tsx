@@ -19,7 +19,9 @@ export default function PdfViewer({ url, footer, labels }: { url: string; footer
       try {
         const pdfjs = await import('pdfjs-dist');
         pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
-        const loaded = await pdfjs.getDocument({ url }).promise;
+        // Only the pages turned to are fetched (range requests), not the whole
+        // book: big textbooks open fast and use little traffic.
+        const loaded = await pdfjs.getDocument({ url, disableAutoFetch: true, disableStream: true, rangeChunkSize: 256 * 1024 }).promise;
         if (!cancelled) setDoc(loaded);
       } catch (e) {
         if (!cancelled) setError(String(e));

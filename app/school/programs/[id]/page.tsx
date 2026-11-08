@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import Shell, { Flash } from '@/components/Shell';
 import RichText from '@/components/RichText';
 import { requireProfile } from '@/lib/session';
+import { isAudio, pathLabel, type Folder } from '@/lib/library';
 import { addProgramLesson, attachFile, detachFile, saveProgramLesson, updateProgram } from '@/app/groups/actions';
 
 type PL = {
@@ -21,10 +22,11 @@ export default async function ProgramPage({ params, searchParams }: {
 
   const { data: program } = await supabase.from('programs').select('id, title, level, next_program_id').eq('id', id).maybeSingle();
   if (!program) notFound();
-  const [lessons, others, library, guides] = await Promise.all([
+  const [lessons, others, library, folderRows, guides] = await Promise.all([
     supabase.from('program_lessons').select('*').eq('program_id', id).order('n').returns<PL[]>(),
     supabase.from('programs').select('id, title').neq('id', id).order('title'),
-    supabase.from('files').select('id, title').eq('visibility', 'library').order('title'),
+    supabase.from('files').select('id, title, folder_id, staff_only, mime').eq('visibility', 'library').order('title'),
+    supabase.from('library_folders').select('id, name, parent_id').returns<Folder[]>(),
     supabase.from('program_files').select('file_id, for_students, files(title)').eq('program_id', id).returns<FileLink[]>(),
   ]);
   const lessonIds = (lessons.data ?? []).map((l) => l.id);
@@ -33,13 +35,28 @@ export default async function ProgramPage({ params, searchParams }: {
       .in('program_lesson_id', lessonIds).returns<(FileLink & { program_lesson_id: string })[]>()
     : { data: [] as (FileLink & { program_lesson_id: string })[] };
 
+  // library files by folder; team-only ones can go on a course for teachers only
+  const libGroups = (() => {
+    const folders = folderRows.data ?? [];
+    const m = new Map<string, { id: string; title: string; staff_only: boolean }[]>();
+    for (const f of library.data ?? []) {
+      if (isAudio(f.mime)) continue;
+      const g = pathLabel(folders, f.folder_id) || t('libNoFolder');
+      m.set(g, [...(m.get(g) ?? []), f]);
+    }
+    return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0], 'uk'));
+  })();
   const attachForm = (lessonId: string | null) => (
     <form action={attachFile} className="row">
       <input type="hidden" name="program_id" value={id} />
       <input type="hidden" name="program_lesson_id" value={lessonId ?? ''} />
       <select name="file_id" required defaultValue="" aria-label={t('attachFile')}>
         <option value="" disabled>{t('attachFile')}</option>
-        {(library.data ?? []).map((f) => <option key={f.id} value={f.id}>{f.title}</option>)}
+        {libGroups.map(([g, files]) => (
+          <optgroup key={g} label={g}>
+            {files.map((f) => <option key={f.id} value={f.id}>{f.title}{f.staff_only ? ` · 🔒 ${t('libTeamOnly')}` : ''}</option>)}
+          </optgroup>
+        ))}
       </select>
       <select name="for_students" defaultValue="true" aria-label={t('forStudents')}>
         <option value="true">{t('forStudents')}</option>

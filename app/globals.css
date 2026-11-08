@@ -473,3 +473,46 @@ details.s-prev > summary { display: flex; justify-content: space-between; gap: 1
   .invite-row input[type=email] { grid-column: 1 / 2; }
   .invite-span { grid-column: 1 / -1; }
 }
+
+/* Library: folders, files, folder upload */
+.lib-head { align-items: flex-end; gap: 16px; flex-wrap: wrap; }
+.lib-search input { width: 280px; max-width: 100%; }
+.lib-layout { display: grid; grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr); gap: 18px; align-items: start; margin-top: 8px; }
+@media (max-width: 900px) { .lib-layout { grid-template-columns: minmax(0, 1fr); } .lib-search, .lib-search input { width: 100%; } }
+.crumbs { margin: 0; color: var(--muted); }
+.crumbs a { color: var(--red); text-decoration: none; }
+.crumbs strong { color: var(--ink); }
+.lib-folders { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
+.lib-folder { display: flex; flex-direction: column; gap: 4px; padding: 16px; border-radius: var(--radius); background: var(--card); border: 1px solid var(--line); color: var(--ink); text-decoration: none; transition: border-color .15s, transform .15s; }
+.lib-folder:hover { border-color: var(--red); transform: translateY(-1px); }
+.lib-folder-icon { font-size: 26px; line-height: 1; }
+.lib-folder-name { font-weight: 600; font-size: 16px; overflow-wrap: anywhere; }
+.lib-folder-n { font-size: 13px; }
+.lib-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--sand); }
+.lib-row:last-child { border-bottom: 0; }
+.lib-title { display: flex; gap: 10px; align-items: flex-start; color: var(--ink); text-decoration: none; font-weight: 500; min-width: 0; overflow-wrap: anywhere; }
+.lib-title:hover { color: var(--red); }
+.lib-icon { flex: none; }
+.lib-where { display: block; font-size: 12px; font-weight: 400; }
+.lib-meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; font-size: 13px; flex: none; max-width: 55%; }
+.lib-edit[open] { flex-basis: 100%; }
+.lib-edit form { margin-top: 10px; min-width: 240px; }
+.lib-edit label.check, label.check { flex-direction: row; align-items: center; gap: 8px; }
+label.check input { min-height: 0; width: auto; }
+.lib-danger { margin-top: 10px; }
+button.danger { color: var(--red); border-color: var(--red); background: var(--card); }
+.lib-team { background: #fffaf3; }
+.lib-drop { border: 2px dashed #d9cfc5; border-radius: 12px; padding: 18px; display: flex; flex-direction: column; gap: 8px; text-align: center; font-size: 14px; }
+.lib-drop p { margin: 0; }
+.lib-drop.over { border-color: var(--red); background: var(--rose); }
+.up-list { max-height: 320px; overflow: auto; display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
+.up-row { display: flex; justify-content: space-between; gap: 10px; padding: 4px 0; border-bottom: 1px solid var(--sand); }
+.up-name { min-width: 0; overflow-wrap: anywhere; }
+.up-state { flex: none; color: var(--muted); text-align: right; max-width: 50%; }
+.up-row.ok .up-state { color: var(--ok); }
+.up-row.err .up-state { color: var(--red); }
+.audio-file { width: 100%; max-width: 640px; }
+@media (max-width: 600px) {
+  .lib-row { flex-direction: column; gap: 6px; }
+  .lib-meta { max-width: 100%; justify-content: flex-start; padding-left: 28px; }
+}

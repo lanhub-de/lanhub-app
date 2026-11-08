@@ -2,6 +2,7 @@ import Link from 'next/link';
 import Shell, { Flash } from '@/components/Shell';
 import GroupLessonCard, { type Member } from '@/components/GroupLessonCard';
 import TodayLessonCard, { type FileRef } from '@/components/TodayLessonCard';
+import { pickerGroups, type Folder, type LibFile } from '@/lib/library';
 import ScheduleLesson from '@/components/ScheduleLesson';
 import { requireProfile, TEACHING } from '@/lib/session';
 import { currentMonthStart, fmtDate, fmtDateTime, fmtMoney, fmtMonth, kyivLocalToIso, SCHOOL_TZ } from '@/lib/i18n';
@@ -77,7 +78,7 @@ export default async function TeacherPage({ searchParams }: { searchParams: Prom
   const groupIds = [...new Set(all.map((l) => l.group_id).filter(Boolean))] as string[];
   const groupLessonIds = all.filter((l) => l.group_id).map((l) => l.id);
   const soloIds = [...new Set([...all.filter((l) => !l.group_id).map((l) => l.id), ...review.filter((l) => !l.group_id).map((l) => l.id)])];
-  const [memberRows, absenceRows, attached, libraryFiles] = await Promise.all([
+  const [memberRows, absenceRows, attached, libraryFiles, libraryFolders] = await Promise.all([
     groupIds.length
       ? supabase.from('group_members').select('group_id, student_id, students(full_name)').in('group_id', groupIds)
         .returns<{ group_id: string; student_id: string; students: { full_name: string } | null }[]>()
@@ -89,8 +90,13 @@ export default async function TeacherPage({ searchParams }: { searchParams: Prom
       ? supabase.from('lesson_files').select('lesson_id, files(id, title, level)').in('lesson_id', soloIds)
         .returns<{ lesson_id: string; files: FileRef | null }[]>()
       : Promise.resolve({ data: [] as { lesson_id: string; files: FileRef | null }[] }),
-    supabase.from('files').select('id, title, level').eq('visibility', 'library').order('title').returns<FileRef[]>(),
+    supabase.from('files').select('id, title, folder_id, level, staff_only, size_bytes, mime, visibility, uploaded_by')
+      .eq('visibility', 'library').eq('staff_only', false).order('title').returns<LibFile[]>(),
+    supabase.from('library_folders').select('id, name, parent_id').returns<Folder[]>(),
   ]);
+  // "+ from the library": grouped by folder, teacher guides and audio left out
+  const libraryRefs: FileRef[] = pickerGroups(libraryFiles.data ?? [], libraryFolders.data ?? [], t('libNoFolder'))
+    .flatMap(([group, files]) => files.map((f) => ({ id: f.id, title: f.title, level: f.level, group })));
   const materialsOf = (lid: string) => (attached.data ?? []).filter((a) => a.lesson_id === lid && a.files).map((a) => a.files!);
   const membersOf = (gid: string): Member[] => (memberRows.data ?? [])
     .filter((m) => m.group_id === gid).map((m) => ({ student_id: m.student_id, name: m.students?.full_name ?? '' }))
@@ -99,7 +105,7 @@ export default async function TeacherPage({ searchParams }: { searchParams: Prom
   const card = (l: LessonDb, showDay = false) => l.group_id && l.program_lessons
     ? <GroupLessonCard key={l.id} lesson={l} members={membersOf(l.group_id)} absent={absentIn(l.id)} t={t} locale={profile.locale} returnTo={here} />
     : <TodayLessonCard key={l.id} lesson={l} t={t} locale={profile.locale} returnTo={here} showDay={showDay}
-        materials={materialsOf(l.id)} library={libraryFiles.data ?? []} userId={profile.id} teacherZoom={teacherZoom} />;
+        materials={materialsOf(l.id)} library={libraryRefs} userId={profile.id} teacherZoom={teacherZoom} />;
 
   const myStudents = (students.data ?? []).filter((s) => (who.pending ? s.pending_teacher === who.pending : s.teacher_id === who.id && !s.pending_teacher));
   const pkgByStudent = new Map((packages.data ?? []).map((p) => [p.student_id, p]));

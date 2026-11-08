@@ -3,13 +3,14 @@ import Shell from '@/components/Shell';
 import PdfViewer from '@/components/PdfViewer';
 import { requireProfile } from '@/lib/session';
 
-// A course guide or lesson file for a student: view only, short-lived link.
+// A course guide or lesson file for a student: view only; the link lasts a
+// lesson (pages load as they are turned), then stops working.
 export default async function MyFile({ params }: { params: Promise<{ id: string }> }) {
   const { supabase, profile, t } = await requireProfile(['student']);
   const { id } = await params;
   const { data: file } = await supabase.from('files').select('id, title, level, storage_path').eq('id', id).maybeSingle();
   if (!file) notFound();
-  const { data: signed } = await supabase.storage.from('files').createSignedUrl(file.storage_path, 300);
+  const { data: signed } = await supabase.storage.from('files').createSignedUrl(file.storage_path, 3 * 60 * 60);
   if (!signed?.signedUrl) notFound();
   await supabase.from('file_access_log').insert({ file_id: file.id, profile_id: profile.id });
   return (
