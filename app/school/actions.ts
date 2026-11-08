@@ -63,6 +63,20 @@ export async function addPackage(f: FormData) {
   done(`/school/students/${studentId}`);
 }
 
+// Only the owner deletes, and only a card without lessons: a student who has
+// lessons stays in the history (status "left" hides them from the lists).
+export async function deleteStudent(f: FormData) {
+  const id = str(f, 'id');
+  if (str(f, 'sure') !== '1') done(`/school/students/${id}`);
+  const supabase = await supabaseServer();
+  const { count } = await supabase.from('lessons').select('id', { count: 'exact', head: true }).eq('student_id', id);
+  if (count) done(`/school/students/${id}`, 'HAS_LESSONS');
+  const { data, error } = await supabase.from('students').delete().eq('id', id).select('id');
+  if (error) done(`/school/students/${id}`, error.message);
+  if (!data?.length) done(`/school/students/${id}`, 'Only the owner can delete a student');
+  done('/school/students');
+}
+
 export async function extendPackage(f: FormData) {
   const studentId = str(f, 'student_id');
   const supabase = await supabaseServer();

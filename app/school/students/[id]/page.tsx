@@ -5,7 +5,7 @@ import LessonRow from '@/components/LessonRow';
 import { requireProfile, STAFF } from '@/lib/session';
 import { fmtDate, fmtMoney } from '@/lib/i18n';
 import { LESSON_SELECT, toView, type LessonDb } from '@/lib/lessons';
-import { addPackage, addToGroup, extendPackage, updateStudent } from '../../actions';
+import { addPackage, addToGroup, deleteStudent, extendPackage, updateStudent } from '../../actions';
 
 export default async function StudentPage({
   params, searchParams,
@@ -37,7 +37,7 @@ export default async function StudentPage({
     <Shell profile={profile} t={t} active="/school/students">
       <p><Link href="/school/students">← {t('navStudents')}</Link></p>
       <h1>{s.full_name}</h1>
-      <Flash error={sp.e} />
+      <Flash error={sp.e === 'HAS_LESSONS' ? t('hasLessons') : sp.e} />
       <div className="grid" style={{ alignItems: 'start' }}>
         <section className="stack">
           <h2>{t('packages')}</h2>
@@ -133,6 +133,21 @@ export default async function StudentPage({
               <button className="small" type="submit">{t('add')}</button>
             </form>
           </div>
+
+          {profile.role === 'owner' && (
+            <details className="card">
+              <summary style={{ color: 'var(--red)' }}>{t('deleteStudent')}</summary>
+              <p className="muted">{t('deleteStudentHint')}</p>
+              <form action={deleteStudent} className="stack" style={{ gap: 10 }}>
+                <input type="hidden" name="id" value={id} />
+                <label className="row" style={{ gap: 8 }}>
+                  <input type="checkbox" name="sure" value="1" required />
+                  {t('deleteStudentSure', { name: s.full_name })}
+                </label>
+                <button className="small" type="submit">{t('deleteStudent')}</button>
+              </form>
+            </details>
+          )}
         </section>
       </div>
     </Shell>
