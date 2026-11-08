@@ -1,7 +1,7 @@
 import Shell, { Flash } from '@/components/Shell';
 import { requireProfile } from '@/lib/session';
 import { fmtDate, fmtMoney } from '@/lib/i18n';
-import { addRate, invitePerson, setActive } from '../actions';
+import { addRate, invitePerson, resendInvite, setActive } from '../actions';
 
 type Rate = {
   id: string; teacher_id: string; kind: string; band: string | null; market: string | null;
@@ -9,7 +9,7 @@ type Rate = {
   students: { full_name: string } | null; groups: { name: string } | null;
 };
 
-export default async function TeamPage({ searchParams }: { searchParams: Promise<{ e?: string }> }) {
+export default async function TeamPage({ searchParams }: { searchParams: Promise<{ e?: string; ok?: string }> }) {
   const { supabase, profile, t } = await requireProfile(['owner']);
   const sp = await searchParams;
   const [people, invites, rates] = await Promise.all([
@@ -31,7 +31,7 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
   return (
     <Shell profile={profile} t={t} active="/school/team">
       <h1>{t('team')}</h1>
-      <Flash error={sp.e} />
+      <Flash error={sp.e} ok={sp.ok === 'sent' ? t('inviteSent') : undefined} />
 
       <details className="card" style={{ marginBottom: 16 }} open={(people.data ?? []).length <= 1}>
         <summary>+ {t('invite')}</summary>
@@ -64,7 +64,13 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
           {(invites.data ?? []).map((i) => (
             <div key={i.email} className="spread" style={{ padding: '6px 0' }}>
               <span>{i.full_name} <span className="muted">· {i.email} · {t(`role_${i.role}` as never)}</span></span>
-              <span className="pill">{t('pending')}</span>
+              <span className="row">
+                <span className="pill">{t('pending')}</span>
+                <form action={resendInvite}>
+                  <input type="hidden" name="email" value={i.email} />
+                  <button className="small" type="submit">{t('sendInvite')}</button>
+                </form>
+              </span>
             </div>
           ))}
         </div>

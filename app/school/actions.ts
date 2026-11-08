@@ -2,6 +2,7 @@
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { supabaseServer } from '@/lib/supabase/server';
+import { canSendMail, sendInvite } from '@/lib/mail';
 
 function done(path: string, error?: string | null) {
   revalidatePath(path);
@@ -112,14 +113,34 @@ export async function invitePerson(f: FormData) {
   const supabase = await supabaseServer();
   const role = str(f, 'role');
   const teaches = role === 'teacher' || role === 'head_teacher';
+  const email = str(f, 'email').toLowerCase();
+  const locale = str(f, 'locale') === 'uk' ? 'uk' : 'en';
   const { error } = await supabase.from('invites').insert({
-    email: str(f, 'email').toLowerCase(),
+    email,
     full_name: str(f, 'full_name'),
     role,
-    locale: str(f, 'locale') === 'uk' ? 'uk' : 'en',
+    locale,
     pending_rates: teaches ? TEMPLATES[str(f, 'template')] ?? [] : [],
   });
-  done('/school/team', error?.message);
+  if (error) done('/school/team', error.message);
+  if (canSendMail()) {
+    const mailError = await sendInvite(email, str(f, 'full_name'), role, locale);
+    if (mailError) done('/school/team', mailError);
+    revalidatePath('/school/team');
+    redirect('/school/team?ok=sent');
+  }
+  done('/school/team');
+}
+
+export async function resendInvite(f: FormData) {
+  const supabase = await supabaseServer();
+  const { data: inv } = await supabase.from('invites').select('email, full_name, role, locale')
+    .eq('email', str(f, 'email')).is('accepted_at', null).maybeSingle();
+  if (!inv) done('/school/team', 'No such invite');
+  const mailError = await sendInvite(inv!.email, inv!.full_name, inv!.role, inv!.locale);
+  if (mailError) done('/school/team', mailError);
+  revalidatePath('/school/team');
+  redirect('/school/team?ok=sent');
 }
 
 export async function addRate(f: FormData) {
