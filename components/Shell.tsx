@@ -3,6 +3,7 @@ import type { Profile } from '@/lib/session';
 import type { T } from '@/lib/i18n';
 import { setLocale, signOut } from '@/app/actions';
 import ChatBadge from '@/components/ChatBadge';
+import StudentShell from '@/components/StudentShell';
 
 type NavItem = { href: string; label: string };
 
@@ -55,6 +56,9 @@ function navFor(profile: Profile, t: T): NavItem[] {
 export default function Shell({
   profile, t, active, children,
 }: { profile: Profile; t: T; active: string; children: React.ReactNode }) {
+  if (profile.role === 'student') {
+    return <StudentShell t={t} locale={profile.locale} name={profile.full_name} active={active}>{children}</StudentShell>;
+  }
   const items = navFor(profile, t);
   const side = items.length > 3;
   const initial = (profile.full_name.trim().charAt(0) || 'L').toUpperCase();
@@ -69,7 +73,7 @@ export default function Shell({
       <header className="topbar">
         <Link href="/" className="brand-wrap">
           <span className="brand">LanHub</span>
-          <span className="brand-sub">{profile.role === 'teacher' ? t('teacherCabinet') : profile.role === 'student' ? t('studentCabinet') : t('platformSchool')}</span>
+          <span className="brand-sub">{profile.role === 'teacher' ? t('teacherCabinet') : t('platformSchool')}</span>
         </Link>
         {!side && <nav className="pills" aria-label="LanHub">{links}</nav>}
         <div className="who">

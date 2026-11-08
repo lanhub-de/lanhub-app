@@ -1,9 +1,9 @@
-import Link from 'next/link';
-import Shell from '@/components/Shell';
+import StudentShell from '@/components/StudentShell';
 import CoursePage from '@/components/CoursePage';
 import { requireProfile } from '@/lib/session';
 
-// The school and the teacher see the course page exactly as students do.
+// The school and the teacher see the course page exactly as students do,
+// in the student's own frame.
 export default async function CoursePreview({ params, searchParams }: {
   params: Promise<{ id: string }>; searchParams: Promise<{ l?: string; lang?: string }>;
 }) {
@@ -11,10 +11,10 @@ export default async function CoursePreview({ params, searchParams }: {
   const { id } = await params;
   const { l } = await searchParams;
   return (
-    <Shell profile={profile} t={t} active={profile.role === 'teacher' ? '/teacher' : '/school/groups'}>
-      <p style={{ marginTop: 0 }}><Link href={`/groups/${id}`}>← {t('openGroup')}</Link></p>
+    <StudentShell t={t} locale={profile.locale} name={t('c_studentName')} active="/me"
+      preview={{ back: `/groups/${id}`, label: t('openGroup'), text: t('c_preview') }}>
       <CoursePage supabase={supabase} groupId={id} selected={l ? Number(l) : undefined} t={t} locale={profile.locale}
         basePath={`/groups/${id}/preview`} fileBase="/library" preview />
-    </Shell>
+    </StudentShell>
   );
 }

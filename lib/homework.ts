@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { T } from './i18n';
 import type { HwLabels } from '@/components/HomeworkForm';
+import type { DropLabels } from '@/components/HomeworkDrop';
 
 export type Homework = {
   id: string; lesson_id: string; student_id: string; body: string | null;
@@ -33,5 +34,13 @@ export function homeworkLabels(t: T, mode: 'submit' | 'review'): HwLabels {
     attach: t('chatAttach'), voice: t('chatVoice'), recording: t('chatRecording'), cancel: t('cancel'),
     send: t(mode === 'submit' ? 'hwSend' : 'hwMarkChecked'), tooBig: t('chatTooBig'), failed: t('chatFailed'),
     noMic: t('chatNoMic'), attached: t('hwAttached'), remove: t('remove'),
+  };
+}
+
+export function dropLabels(t: T): DropLabels {
+  return {
+    hint: t('hwDropHint'), choose: t('hwChoose'), sending: t('hwSending'), write: t('hwWrite'), voice: t('chatVoice'),
+    placeholder: t('hwPlaceholder'), send: t('send'), recording: t('chatRecording'), cancel: t('cancel'),
+    failed: t('chatFailed'), tooBig: t('chatTooBig'), noMic: t('chatNoMic'),
   };
 }

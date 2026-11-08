@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import RichText from '@/components/RichText';
+import { IconVideo } from '@/components/Icons';
+import { withName } from '@/lib/names';
 import type { Locale, T } from '@/lib/i18n';
 import { fmtDate, fmtDayInTz, fmtInTz } from '@/lib/i18n';
 import HomeworkForm from '@/components/HomeworkForm';
@@ -82,6 +84,11 @@ export default async function CoursePage({
   const next = items.find((i) => i.slot && !i.held && !i.off && new Date(i.slot.starts_at).getTime() > now - 3 * 3600e3);
   const current = items.find((i) => i.pl.n === selected) ?? next ?? items[items.length - 1];
   const days = (g.days ?? []).map((d) => t(`wd${d}` as never)).join(' & ');
+  // "German Activation · Flow 3" -> eyebrow "German Activation · A2–B1", title "Flow 3"
+  const title = g.program_title ?? g.name;
+  const cut = title.lastIndexOf(' · ');
+  const titleHead = cut > 0 ? title.slice(0, cut) : null;
+  const titleMain = cut > 0 ? title.slice(cut + 3) : title;
   const guides = fileRows.filter((f) => !f.program_lesson_id);
   const badge = (i: (typeof items)[number]) => i.held ? t('c_done')
     : i.off && i.slot ? t(`st_${i.slot.status}` as never)
@@ -90,31 +97,29 @@ export default async function CoursePage({
 
   return (
     <div className="stack" style={{ gap: 22 }}>
-      {preview && <div className="flash">{t('c_preview')}</div>}
-
       <div className="course-top">
-        <div style={{ flex: '1 1 340px' }}>
-          {g.program_level && <div className="eyebrow">{g.program_level}</div>}
-          <h1 style={{ margin: '6px 0 4px' }}>{g.program_title ?? g.name}</h1>
+        <div className="course-head">
+          <div className="eyebrow">{[titleHead, g.program_level].filter(Boolean).join(' · ')}</div>
+          <h1>{titleMain}</h1>
           <p className="muted" style={{ margin: 0 }}>
             {days}{g.start_time ? ` · ${g.start_time.slice(0, 5)} (${t('groupTime')})` : ''}
-            {g.teacher_name ? ` · ${t('c_with', { teacher: g.teacher_name })}` : ''}
+            {g.teacher_name ? ` · ${withName(g.teacher_name, locale)}` : ''}
             {items.length ? ` · ${t('c_doneOf', { n: doneCount, m: items.length })}` : ''}
           </p>
-          <div className="row" style={{ marginTop: 10 }}>
-            {g.zoom_url
-              ? <a className="btn small" href={g.zoom_url} target="_blank" rel="noreferrer">🎥 {t('regularZoom')}</a>
-              : <span className="pill">{t('zoomComing')}</span>}
-            <Link href={`/chat?g=${g.id}`} className="btn small">💬 {t('chatKindGroup')}</Link>
-          </div>
+          {!next?.slot && g.zoom_url && (
+            <div className="row" style={{ marginTop: 10 }}>
+              <a className="btn small" href={g.zoom_url} target="_blank" rel="noreferrer"><IconVideo size={16} /> {t('regularZoom')}</a>
+            </div>
+          )}
         </div>
         {next?.slot ? (
           <section className="next-card" aria-label={t('c_next')}>
             <span className="next-when">{next.isToday ? t('c_today') : t('c_next')} · {fmtInTz(next.slot.starts_at, g.tz, locale)}</span>
             <strong className="next-title">{t('c_lesson', { n: next.pl.n })} · {next.pl.title}</strong>
+            {next.pl.prepare && <span className="next-sub">{t('c_prepareHint')}</span>}
             {(next.slot.zoom_url ?? g.zoom_url)
-              ? <a className="next-zoom" href={(next.slot.zoom_url ?? g.zoom_url)!} target="_blank" rel="noreferrer">{t('c_join')}</a>
-              : <span style={{ opacity: .85, fontSize: 14 }}>{t('zoomComing')}</span>}
+              ? <a className="next-zoom" href={(next.slot.zoom_url ?? g.zoom_url)!} target="_blank" rel="noreferrer"><IconVideo size={18} />{t('c_join')}</a>
+              : <span className="next-zoom off"><IconVideo size={18} />{t('zoomComing')}</span>}
           </section>
         ) : items.length > 0 && doneCount === items.length ? (
           <section className="next-card"><strong className="next-title">{t('c_allDone')}</strong></section>
@@ -125,7 +130,7 @@ export default async function CoursePage({
         <nav className="card course-list" aria-label={t('c_lessons')}>
           <h2 style={{ margin: '4px 8px 8px', fontSize: 16 }}>{t('c_lessons')}</h2>
           {items.map((i) => (
-            <Link key={i.pl.id} href={`${basePath}?l=${i.pl.n}`} className={`course-item ${current?.pl.id === i.pl.id ? 'active' : ''}`}
+            <Link key={i.pl.id} href={`${basePath}?l=${i.pl.n}#lesson`} scroll={false} className={`course-item ${current?.pl.id === i.pl.id ? 'active' : ''}`}
               aria-current={current?.pl.id === i.pl.id ? 'page' : undefined}>
               <span className="num">{i.pl.n}</span>
               <span className="ttl">{i.pl.title}</span>
@@ -137,7 +142,7 @@ export default async function CoursePage({
         </nav>
 
         {current && (
-          <article className="card course-detail">
+          <article className="card course-detail" id="lesson">
             <div>
               <div className="eyebrow">{t('c_lesson', { n: current.pl.n })}{current.pl.topic ? ` · ${current.pl.topic}` : ''}</div>
               <h2 style={{ fontSize: 24, margin: '4px 0 0' }}>{current.pl.title}</h2>
@@ -232,16 +237,15 @@ export default async function CoursePage({
         )}
 
         <aside className="stack course-aside">
-          <section className="card">
-            <h2 style={{ fontSize: 16, marginTop: 0 }}>💬 {t('groupChat')}</h2>
-            {peek.length === 0 && <p className="muted" style={{ margin: '0 0 8px', fontSize: 14 }}>{t('groupChatEmpty')}</p>}
+          <section className="card course-chat">
+            <h2>{t('groupChat')}</h2>
+            {peek.length === 0 && <p className="muted" style={{ margin: 0, fontSize: 14 }}>{t('groupChatEmpty')}</p>}
             {peek.map((m) => (
               <div key={m.id} className="chat-peek">
-                <strong>{nameOf.get(m.sender_id) ?? ''}</strong>
-                <span>{m.body ?? (m.file_kind === 'audio' ? '🎤' : '📎')}</span>
+                <strong>{nameOf.get(m.sender_id) ?? ''}:</strong> {m.body ?? (m.file_kind === 'audio' ? '🎤' : '📎')}
               </div>
             ))}
-            <Link href={`/chat?g=${g.id}`} className="btn small" style={{ marginTop: 6 }}>{t('openChat')}</Link>
+            {preview ? <span className="small-link muted">{t('openChat')}</span> : <Link href={`/chat?g=${g.id}`} className="small-link">{t('openChat')}</Link>}
           </section>
           {guides.length > 0 && (
             <section className="card">

@@ -1,6 +1,6 @@
 import Shell, { Flash } from '@/components/Shell';
 import { requireProfile, TEACHING } from '@/lib/session';
-import { saveSettings } from '@/app/actions';
+import { saveSettings, signOut } from '@/app/actions';
 
 export default async function Settings({ searchParams }: { searchParams: Promise<{ ok?: string; e?: string }> }) {
   const { supabase, profile, t } = await requireProfile();
@@ -33,6 +33,9 @@ export default async function Settings({ searchParams }: { searchParams: Promise
           </label>
         )}
         <button className="primary" type="submit">{t('save')}</button>
+      </form>
+      <form action={signOut} style={{ marginTop: 16 }}>
+        <button type="submit">{t('signOut')}</button>
       </form>
     </Shell>
   );

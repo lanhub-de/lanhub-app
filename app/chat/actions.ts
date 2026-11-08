@@ -72,3 +72,19 @@ export async function openChat(f: FormData) {
   if (error) redirect(`/chat?e=${encodeURIComponent(error.message)}`);
   redirect(`/chat?c=${data}`);
 }
+
+// A quick message from the student's home to her teacher: opens the direct
+// chat first if there is none yet.
+export async function sendToTeacher(input: { conversationId?: string | null; studentId: string; teacherId: string; body: string }): Promise<{ error?: string; conversationId?: string }> {
+  let cid = input.conversationId ?? null;
+  if (!cid) {
+    const supabase = await supabaseServer();
+    const { data, error } = await supabase.rpc('start_chat', {
+      p_kind: 'direct', p_group: null, p_student: input.studentId, p_teacher: input.teacherId,
+    });
+    if (error || !data) return { error: error?.message ?? 'no chat' };
+    cid = data as string;
+  }
+  const res = await sendMessage({ conversationId: cid, body: input.body });
+  return res.error ? { error: res.error } : { conversationId: cid };
+}

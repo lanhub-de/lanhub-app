@@ -18,7 +18,7 @@ export default function ChatBadge() {
     const every = setInterval(load, 30000);
     const onVisible = () => { if (document.visibilityState === 'visible') void load(); };
     document.addEventListener('visibilitychange', onVisible);
-    const channel = sb.channel('chat-badge');
+    const channel = sb.channel(`chat-badge-${Math.random().toString(36).slice(2)}`);
     (async () => {
       const { data } = await sb.auth.getSession();
       if (data.session) sb.realtime.setAuth(data.session.access_token);
