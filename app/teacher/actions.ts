@@ -54,3 +54,22 @@ export async function addLesson(formData: FormData) {
   const { error } = await supabase.from('lessons').insert(row);
   back(returnTo, error?.message);
 }
+
+// Materials for one lesson: a library file or the teacher's own.
+export async function attachLessonFile(formData: FormData) {
+  const returnTo = String(formData.get('return_to') || '/teacher');
+  const fileId = String(formData.get('file_id') || '');
+  if (!fileId) back(returnTo, 'Choose a file');
+  const supabase = await supabaseServer();
+  const { error } = await supabase.from('lesson_files')
+    .upsert({ lesson_id: String(formData.get('lesson_id')), file_id: fileId }, { ignoreDuplicates: true });
+  back(returnTo, error?.message);
+}
+
+export async function detachLessonFile(formData: FormData) {
+  const returnTo = String(formData.get('return_to') || '/teacher');
+  const supabase = await supabaseServer();
+  const { error } = await supabase.from('lesson_files').delete()
+    .eq('lesson_id', String(formData.get('lesson_id'))).eq('file_id', String(formData.get('file_id')));
+  back(returnTo, error?.message);
+}

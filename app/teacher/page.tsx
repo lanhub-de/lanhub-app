@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import Shell, { Flash } from '@/components/Shell';
 import GroupLessonCard, { type Member } from '@/components/GroupLessonCard';
-import TodayLessonCard from '@/components/TodayLessonCard';
+import TodayLessonCard, { type FileRef } from '@/components/TodayLessonCard';
 import { requireProfile, TEACHING } from '@/lib/session';
 import { currentMonthStart, fmtDate, fmtMoney, fmtMonth, kyivLocalToIso, SCHOOL_TZ } from '@/lib/i18n';
 import { addLesson } from './actions';
@@ -61,7 +61,8 @@ export default async function TeacherPage({ searchParams }: { searchParams: Prom
   const all = [...(unmarked.data ?? []), ...(ahead.data ?? []), ...(recent.data ?? [])];
   const groupIds = [...new Set(all.map((l) => l.group_id).filter(Boolean))] as string[];
   const groupLessonIds = all.filter((l) => l.group_id).map((l) => l.id);
-  const [memberRows, absenceRows] = await Promise.all([
+  const soloIds = all.filter((l) => !l.group_id).map((l) => l.id);
+  const [memberRows, absenceRows, attached, libraryFiles] = await Promise.all([
     groupIds.length
       ? supabase.from('group_members').select('group_id, student_id, students(full_name)').in('group_id', groupIds)
         .returns<{ group_id: string; student_id: string; students: { full_name: string } | null }[]>()
@@ -69,14 +70,21 @@ export default async function TeacherPage({ searchParams }: { searchParams: Prom
     groupLessonIds.length
       ? supabase.from('lesson_absences').select('lesson_id, student_id').in('lesson_id', groupLessonIds)
       : Promise.resolve({ data: [] as { lesson_id: string; student_id: string }[] }),
+    soloIds.length
+      ? supabase.from('lesson_files').select('lesson_id, files(id, title, level)').in('lesson_id', soloIds)
+        .returns<{ lesson_id: string; files: FileRef | null }[]>()
+      : Promise.resolve({ data: [] as { lesson_id: string; files: FileRef | null }[] }),
+    supabase.from('files').select('id, title, level').eq('visibility', 'library').order('title').returns<FileRef[]>(),
   ]);
+  const materialsOf = (lid: string) => (attached.data ?? []).filter((a) => a.lesson_id === lid && a.files).map((a) => a.files!);
   const membersOf = (gid: string): Member[] => (memberRows.data ?? [])
     .filter((m) => m.group_id === gid).map((m) => ({ student_id: m.student_id, name: m.students?.full_name ?? '' }))
     .sort((a, b) => a.name.localeCompare(b.name));
   const absentIn = (lid: string) => new Set((absenceRows.data ?? []).filter((a) => a.lesson_id === lid).map((a) => a.student_id));
   const card = (l: LessonDb, showDay = false) => l.group_id && l.program_lessons
     ? <GroupLessonCard key={l.id} lesson={l} members={membersOf(l.group_id)} absent={absentIn(l.id)} t={t} locale={profile.locale} returnTo={here} />
-    : <TodayLessonCard key={l.id} lesson={l} t={t} locale={profile.locale} returnTo={here} showDay={showDay} />;
+    : <TodayLessonCard key={l.id} lesson={l} t={t} locale={profile.locale} returnTo={here} showDay={showDay}
+        materials={materialsOf(l.id)} library={libraryFiles.data ?? []} userId={profile.id} />;
 
   const myStudents = (students.data ?? []).filter((s) => (who.pending ? s.pending_teacher === who.pending : s.teacher_id === who.id && !s.pending_teacher));
   const pkgByStudent = new Map((packages.data ?? []).map((p) => [p.student_id, p]));
@@ -150,6 +158,7 @@ export default async function TeacherPage({ searchParams }: { searchParams: Prom
                     <span className={`pill ${p ? (p.lessons_left <= 2 ? 'warn' : '') : 'warn'}`} style={{ alignSelf: 'flex-start' }}>
                       {p ? `${t('lessonsLeft', { n: p.lessons_left })}${p.valid_until ? ` · ${t('validUntil', { date: fmtDate(p.valid_until, profile.locale) })}` : ''}` : t('noPackage')}
                     </span>
+                    <Link href={`/teacher/students/${s.id}${q ? `?${q}` : ''}`} className="small-link">{t('folder')}</Link>
                     {!who.pending && (
                       <form action={openChat}>
                         <input type="hidden" name="kind" value="direct" />

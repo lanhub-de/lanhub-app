@@ -2,7 +2,10 @@ import Link from 'next/link';
 import type { Locale, T } from '@/lib/i18n';
 import { SCHOOL_TZ } from '@/lib/i18n';
 import type { LessonDb } from '@/lib/lessons';
-import { moveLesson, setLessonStatus } from '@/app/teacher/actions';
+import { attachLessonFile, detachLessonFile, moveLesson, setLessonStatus } from '@/app/teacher/actions';
+import LessonFileUpload from '@/components/LessonFileUpload';
+
+export type FileRef = { id: string; title: string; level?: string | null };
 
 const OTHER = ['late_cancel', 'cancelled', 'force_majeure'];
 
@@ -23,8 +26,11 @@ function localValue(iso: string) {
 // An individual lesson in the teacher's day, as in the mockup: the time, who,
 // and three buttons. Anything else (cancelled in time, force majeure) under "…".
 export default function TodayLessonCard({
-  lesson, t, locale, returnTo, showDay,
-}: { lesson: LessonDb; t: T; locale: Locale; returnTo: string; showDay?: boolean }) {
+  lesson, t, locale, returnTo, showDay, materials = [], library = [], userId,
+}: {
+  lesson: LessonDb; t: T; locale: Locale; returnTo: string; showDay?: boolean;
+  materials?: FileRef[]; library?: FileRef[]; userId?: string;
+}) {
   const held = ['done', 'no_show', 'late_cancel'].includes(lesson.status);
   const who = lesson.students?.full_name ?? lesson.groups?.name ?? '';
   const level = lesson.students?.level ?? lesson.groups?.level;
@@ -85,8 +91,38 @@ export default function TodayLessonCard({
               </div>
             </details>
           )}
-          <Link href="/library" className="small-link">+ {t('fromLibrary')}</Link>
         </span>
+      </div>
+      <div className="materials">
+        <span className="muted" style={{ fontSize: 13 }}>{t('lessonMaterials')}:</span>
+        {materials.map((f) => (
+          <span key={f.id} className="file-chip">
+            <Link href={`/library/${f.id}`}>📄 {f.title}</Link>
+            <form action={detachLessonFile}>
+              <input type="hidden" name="lesson_id" value={lesson.id} />
+              <input type="hidden" name="file_id" value={f.id} />
+              <input type="hidden" name="return_to" value={returnTo} />
+              <button type="submit" aria-label={t('remove')} title={t('remove')}>×</button>
+            </form>
+          </span>
+        ))}
+        {library.length > 0 && (
+          <details className="move">
+            <summary className="link-btn">+ {t('fromLibrary')}</summary>
+            <form action={attachLessonFile} className="move-form">
+              <input type="hidden" name="lesson_id" value={lesson.id} />
+              <input type="hidden" name="return_to" value={returnTo} />
+              <select name="file_id" required defaultValue="">
+                <option value="" disabled>…</option>
+                {library.filter((f) => !materials.some((m) => m.id === f.id)).map((f) => (
+                  <option key={f.id} value={f.id}>{f.title}{f.level ? ` · ${f.level}` : ''}</option>
+                ))}
+              </select>
+              <button className="primary small" type="submit">{t('add')}</button>
+            </form>
+          </details>
+        )}
+        {userId && <LessonFileUpload lessonId={lesson.id} userId={userId} label={t('ownFile')} failed={t('chatFailed')} />}
       </div>
     </article>
   );

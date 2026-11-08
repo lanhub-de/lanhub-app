@@ -33,14 +33,25 @@ export default async function MyHome() {
   if (groups.length === 1 && lessons.length === 0) redirect(`/me/groups/${groups[0].id}`);
 
   const myIds = (idsRes.data ?? []) as string[];
-  const [pkgs, hwRes] = await Promise.all([
+  const [pkgs, hwRes, filesRes] = await Promise.all([
     myIds.length
       ? supabase.from('package_usage').select('student_id, lessons_total, lessons_used, lessons_left, valid_until, status').in('student_id', myIds).eq('status', 'active')
       : Promise.resolve({ data: [] }),
     lessons.length
       ? supabase.from('homework').select(HOMEWORK_COLUMNS).in('lesson_id', lessons.map((l) => l.id))
       : Promise.resolve({ data: [] }),
+    lessons.length
+      ? supabase.from('lesson_files').select('lesson_id, files(id, title)').in('lesson_id', lessons.map((l) => l.id))
+        .returns<{ lesson_id: string; files: { id: string; title: string } | null }[]>()
+      : Promise.resolve({ data: [] as { lesson_id: string; files: { id: string; title: string } | null }[] }),
   ]);
+  const filesOf = (lid: string) => (filesRes.data ?? []).filter((f) => f.lesson_id === lid && f.files).map((f) => f.files!);
+  const allFiles = [...new Map((filesRes.data ?? []).filter((f) => f.files).map((f) => [f.files!.id, f.files!])).values()];
+  const chips = (lid: string) => filesOf(lid).length > 0 && (
+    <div className="materials">
+      {filesOf(lid).map((f) => <Link key={f.id} href={`/me/files/${f.id}`} className="file-chip" style={{ paddingRight: 10 }}>📄 {f.title}</Link>)}
+    </div>
+  );
   const homework = await withFileLinks(supabase, (hwRes.data ?? []) as Homework[]);
   const hwBy = new Map(homework.map((h) => [h.lesson_id, h]));
   const upcoming = lessons.filter((l) => l.status === 'scheduled' && new Date(l.starts_at).getTime() > now - 2 * 3600e3);
@@ -79,9 +90,12 @@ export default async function MyHome() {
               <h2 style={{ marginTop: 0 }}>{t('meUpcoming')}</h2>
               {upcoming.length === 0 && <p className="muted">{t('meNoUpcoming')}</p>}
               {upcoming.map((l) => (
-                <div key={l.id} className="spread" style={{ padding: '8px 0', borderBottom: '1px solid var(--sand)' }}>
-                  <span><strong><LocalTime iso={l.starts_at} locale={profile.locale} /></strong>{l.teacher_name ? <span className="muted"> · {l.teacher_name}</span> : null}</span>
-                  {l.zoom_url && <a href={l.zoom_url} target="_blank" rel="noreferrer">Zoom</a>}
+                <div key={l.id} style={{ padding: '8px 0', borderBottom: '1px solid var(--sand)' }}>
+                  <div className="spread">
+                    <span><strong><LocalTime iso={l.starts_at} locale={profile.locale} /></strong>{l.teacher_name ? <span className="muted"> · {l.teacher_name}</span> : null}</span>
+                    {l.zoom_url && <a href={l.zoom_url} target="_blank" rel="noreferrer">Zoom</a>}
+                  </div>
+                  {chips(l.id)}
                 </div>
               ))}
             </div>
@@ -102,6 +116,7 @@ export default async function MyHome() {
                         {h && <span className={`pill ${h.status === 'checked' ? 'ok' : ''}`}>{h.status === 'checked' ? t('hwChecked') : t('hwSentOn', { date: fmtDate(h.submitted_at, profile.locale) })}</span>}
                       </span>
                     </div>
+                    {chips(l.id)}
                     {h && <HomeworkView body={h.body} url={h.file_url} kind={h.file_kind} name={h.file_name} />}
                     {h?.status === 'checked' && (h.feedback || h.feedback_url) && (
                       <div className="hw-feedback">
@@ -133,6 +148,16 @@ export default async function MyHome() {
               <div className="big" style={{ color: 'var(--red)' }}>{t('lessonsLeft', { n: pkg.lessons_left })}</div>
               <div className="muted">{t('mePackageUsed', { n: pkg.lessons_used, m: pkg.lessons_total })}</div>
               {pkg.valid_until && <div className="muted">{t('validUntil', { date: fmtDate(pkg.valid_until, profile.locale) })}</div>}
+            </div>
+          )}
+          {allFiles.length > 0 && (
+            <div className="card">
+              <h2 style={{ marginTop: 0 }}>{t('myMaterials')}</h2>
+              {allFiles.map((f) => (
+                <Link key={f.id} href={`/me/files/${f.id}`} className="spread" style={{ padding: '8px 0', borderBottom: '1px solid var(--sand)', color: 'var(--ink)', textDecoration: 'none' }}>
+                  <span>📄 {f.title}</span><span style={{ color: 'var(--red)', fontWeight: 600, fontSize: 14 }}>{t('open')}</span>
+                </Link>
+              ))}
             </div>
           )}
           <Link href="/chat" className="card hw-tile">

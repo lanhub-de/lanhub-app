@@ -884,3 +884,18 @@ test('file rules never trip over folders that are not ids', async () => {
   const [{ try_uuid: bad }] = await rows(ids.owner, `select public.try_uuid('library')`);
   assert.equal(bad, null);
 });
+
+test('lesson materials: the teacher attaches a file to an individual lesson, only that student opens it', async () => {
+  const [lesson] = await rows(ids.owner,
+    `insert into public.lessons (teacher_id, student_id, starts_at) values ($1, $2, now() + interval '1 day') returning id`,
+    [ids.toma, ids.sarah]);
+  const [own] = await rows(ids.toma,
+    `insert into public.files (title, storage_path, visibility) values ('Thema 5', $1, 'private') returning id`,
+    [`private/${ids.toma}/thema5.pdf`]);
+  await rows(ids.toma, 'insert into public.lesson_files (lesson_id, file_id) values ($1, $2)', [lesson.id, own.id]);
+  assert.equal((await rows(ids.sarahLogin, 'select title from public.files where id = $1', [own.id]))[0]?.title, 'Thema 5');
+  assert.equal((await rows(ids.nadiia, 'select * from public.files where id = $1', [own.id])).length, 0);
+  assert.ok(await fails(ids.nadiia, 'insert into public.lesson_files (lesson_id, file_id) values ($1, $2)', [lesson.id, own.id]));
+  const [{ c }] = await rows(ids.sarahLogin, 'select count(*)::int as c from public.lesson_files where lesson_id = $1', [lesson.id]);
+  assert.equal(c, 1);
+});

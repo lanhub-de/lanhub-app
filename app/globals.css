@@ -269,3 +269,9 @@ tr.row-open td { background: var(--rose); }
 .notice.calm { background: var(--sand); }
 .hw-tile { display: flex; justify-content: space-between; align-items: center; gap: 12px; border-color: var(--red); color: var(--ink); text-decoration: none; }
 .hw-count { font-size: 30px; font-weight: 800; color: var(--red); }
+.materials { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 14px; }
+.file-chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 4px 3px 10px; border-radius: 8px; background: var(--rose); }
+.file-chip a { color: var(--ink); text-decoration: none; font-weight: 500; }
+.file-chip button { border: 0; background: none; padding: 0 6px; color: var(--muted); cursor: pointer; font-size: 15px; min-height: 0; }
+.folder-row { padding: 10px 0; border-bottom: 1px solid var(--sand); display: flex; flex-direction: column; gap: 6px; }
+a.file-chip { color: var(--ink); text-decoration: none; }
