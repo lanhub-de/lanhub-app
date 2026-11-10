@@ -8,12 +8,12 @@ export type Homework = {
   file_path: string | null; file_kind: string | null; file_name: string | null; submitted_at: string;
   status: 'submitted' | 'checked'; feedback: string | null;
   feedback_file_path: string | null; feedback_file_kind: string | null; feedback_file_name: string | null;
-  checked_at: string | null;
+  checked_at: string | null; files_removed_at: string | null;
   file_url?: string | null; feedback_url?: string | null;
 };
 
 export const HOMEWORK_COLUMNS =
-  'id, lesson_id, student_id, body, file_path, file_kind, file_name, submitted_at, status, feedback, feedback_file_path, feedback_file_kind, feedback_file_name, checked_at';
+  'id, lesson_id, student_id, body, file_path, file_kind, file_name, submitted_at, status, feedback, feedback_file_path, feedback_file_kind, feedback_file_name, checked_at, files_removed_at';
 
 // Adds one-hour links to the hand-in's file and the teacher's file.
 export async function withFileLinks<H extends Homework>(supabase: SupabaseClient, rows: H[]): Promise<H[]> {

@@ -1,6 +1,8 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { supabaseBrowser } from '@/lib/supabase/client';
+import { shrinkImage } from '@/lib/compress';
+import { voiceOptions } from '@/lib/recorder';
 import { deleteMessage, sendMessage, type SentMessage } from '@/app/chat/actions';
 
 export type ChatMessage = SentMessage & { url?: string | null };
@@ -117,15 +119,19 @@ export default function ChatRoom({
     e.target.value = '';
     if (!f) return;
     const kind = f.type.startsWith('image/') ? 'image' : f.type.startsWith('audio/') ? 'audio' : 'file';
-    await upload(f, f.name, kind);
+    if (kind === 'image') {
+      setBusy(true);
+      const small = await shrinkImage({ blob: f, name: f.name });
+      setBusy(false);
+      await upload(small.blob, small.name, kind);
+    } else await upload(f, f.name, kind);
   }
 
   async function startVoice() {
     setError('');
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const type = ['audio/webm;codecs=opus', 'audio/mp4', 'audio/webm'].find((t) => MediaRecorder.isTypeSupported?.(t)) ?? '';
-      const recorder = new MediaRecorder(stream, type ? { mimeType: type } : undefined);
+      const recorder = new MediaRecorder(stream, voiceOptions());
       const chunks: Blob[] = [];
       recorder.ondataavailable = (ev) => { if (ev.data.size) chunks.push(ev.data); };
       recorder.start();

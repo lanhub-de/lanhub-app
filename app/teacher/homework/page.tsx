@@ -53,7 +53,7 @@ export default async function HomeworkPage({ searchParams }: { searchParams: Pro
               <span className="muted" style={{ fontSize: 13 }}>{t('hwSentOn', { date: fmtDate(h.submitted_at, profile.locale) })}</span>
             </div>
             <span className="muted" style={{ fontSize: 14 }}>{label(h)}</span>
-            <HomeworkView body={h.body} url={h.file_url} kind={h.file_kind} name={h.file_name} />
+            <HomeworkView body={h.body} url={h.file_url} kind={h.file_kind} name={h.file_name} removed={h.files_removed_at ? t('hwFileRemoved') : undefined} />
             <HomeworkForm mode="review" lessonId={h.lesson_id} studentId={h.student_id} homeworkId={h.id}
               labels={homeworkLabels(t, 'review')} path={path} />
           </article>
@@ -69,11 +69,11 @@ export default async function HomeworkPage({ searchParams }: { searchParams: Pro
                   <span className="pill ok">{t('hwChecked')}</span>
                 </summary>
                 <div className="stack" style={{ gap: 8, marginTop: 10 }}>
-                  <HomeworkView body={h.body} url={h.file_url} kind={h.file_kind} name={h.file_name} />
+                  <HomeworkView body={h.body} url={h.file_url} kind={h.file_kind} name={h.file_name} removed={h.files_removed_at ? t('hwFileRemoved') : undefined} />
                   {(h.feedback || h.feedback_url) && (
                     <div className="hw-feedback">
                       <strong>{t('hwTeacherSays')}</strong>
-                      <HomeworkView body={h.feedback} url={h.feedback_url} kind={h.feedback_file_kind} name={h.feedback_file_name} />
+                      <HomeworkView body={h.feedback} url={h.feedback_url} kind={h.feedback_file_kind} name={h.feedback_file_name} removed={h.files_removed_at ? t('hwFileRemoved') : undefined} />
                     </div>
                   )}
                 </div>

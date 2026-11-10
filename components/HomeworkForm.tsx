@@ -3,6 +3,7 @@ import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabaseBrowser } from '@/lib/supabase/client';
 import { extOf, fmtSeconds, kindOf, useRecorder } from '@/lib/recorder';
+import { shrinkImage } from '@/lib/compress';
 import { reviewHomework, submitHomework } from '@/app/homework/actions';
 
 export type HwLabels = {
@@ -35,11 +36,12 @@ export default function HomeworkForm({
     setBusy(true); setError('');
     let fileIn: { filePath?: string; fileKind?: 'image' | 'audio' | 'file'; fileName?: string } = {};
     if (file) {
-      if (file.blob.size > MAX) { setError(labels.tooBig); setBusy(false); return; }
-      const p = `${lessonId}/${studentId}/${mode === 'review' ? 'check-' : ''}${Date.now()}.${extOf(file.name)}`;
-      const { error: up } = await supabaseBrowser().storage.from('homework').upload(p, file.blob, { contentType: file.blob.type || undefined });
+      const small = await shrinkImage(file);
+      if (small.blob.size > MAX) { setError(labels.tooBig); setBusy(false); return; }
+      const p = `${lessonId}/${studentId}/${mode === 'review' ? 'check-' : ''}${Date.now()}.${extOf(small.name)}`;
+      const { error: up } = await supabaseBrowser().storage.from('homework').upload(p, small.blob, { contentType: small.blob.type || undefined });
       if (up) { setError(labels.failed); setBusy(false); return; }
-      fileIn = { filePath: p, fileKind: kindOf(file.blob.type), fileName: file.name };
+      fileIn = { filePath: p, fileKind: kindOf(small.blob.type), fileName: small.name };
     }
     const res = mode === 'submit'
       ? await submitHomework({ lessonId, body: text, ...fileIn }, path)

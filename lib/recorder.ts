@@ -16,8 +16,7 @@ export function useRecorder(onDone: (blob: Blob, name: string) => void, onError:
   async function start() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const type = ['audio/webm;codecs=opus', 'audio/mp4', 'audio/webm'].find((t) => MediaRecorder.isTypeSupported?.(t)) ?? '';
-      const recorder = new MediaRecorder(stream, type ? { mimeType: type } : undefined);
+      const recorder = new MediaRecorder(stream, voiceOptions());
       const chunks: Blob[] = [];
       recorder.ondataavailable = (ev) => { if (ev.data.size) chunks.push(ev.data); };
       recorder.start();
@@ -45,7 +44,15 @@ export function useRecorder(onDone: (blob: Blob, name: string) => void, onError:
   return { recording: Boolean(rec), seconds, start, stop };
 }
 
-export const fmtSeconds = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+// Speech needs little: Opus at 32 kbps is clear and takes ~240 KB a minute
+// (browsers default to ~128 kbps). Safari's AAC gets 64 kbps.
+export function voiceOptions(): MediaRecorderOptions {
+  const type = ['audio/webm;codecs=opus', 'audio/mp4', 'audio/webm'].find((t) => MediaRecorder.isTypeSupported?.(t)) ?? '';
+  const audioBitsPerSecond = type.includes('mp4') ? 64000 : 32000;
+  return type ? { mimeType: type, audioBitsPerSecond } : { audioBitsPerSecond };
+}
+
+export const fmtSeconds =(s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
 export function kindOf(type: string): 'image' | 'audio' | 'file' {
   return type.startsWith('image/') ? 'image' : type.startsWith('audio/') ? 'audio' : 'file';

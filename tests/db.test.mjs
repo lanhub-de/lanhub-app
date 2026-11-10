@@ -1035,3 +1035,32 @@ test('audio by page: the school links tracks to textbook pages, teachers play th
   assert.ok(await fails(ids.nadiia, `insert into public.file_audio (file_id, audio_id, page) values ($1, $2, 2)`, [book.id, track.id]));
   assert.equal((await rows(ids.sarahLogin, 'select * from public.file_audio')).length, 0);
 });
+
+// ---------------------------------------------------------------------------
+// Homework files go a year after the check; text and names stay
+// ---------------------------------------------------------------------------
+test('homework files older than a year are listed for removal only with the secret, then marked gone', async () => {
+  const { rows: [l, l2] } = await db.query(
+    `insert into public.lessons (teacher_id, student_id, starts_at) values ($1, $2, now() - interval '400 days'),
+     ($1, $2, now() - interval '399 days') returning id`, [ids.toma, ids.sarah]);
+  const { rows: [old] } = await db.query(
+    `insert into public.homework (lesson_id, student_id, file_path, file_kind, file_name, submitted_at)
+     values ($1, $2, 'x/old.jpg', 'image', 'notebook.jpg', now() - interval '13 months') returning id`, [l.id, ids.sarah]);
+  const { rows: [fresh] } = await db.query(
+    `insert into public.homework (lesson_id, student_id, file_path, file_kind, file_name, submitted_at, status, checked_at)
+     values ($1, $2, 'x/new.jpg', 'image', 'new.jpg', now() - interval '13 months', 'checked', now() - interval '2 months') returning id`,
+    [l2.id, ids.sarah]);
+  const { rows: [{ value: secret }] } = await db.query(`select value from private.settings where key = 'cleanup_secret'`);
+  assert.ok(secret.length >= 32);
+  assert.ok(await fails(ids.owner, 'select * from public.homework_files_due($1)', [secret]));
+  await assert.rejects(db.query('select * from public.homework_files_due($1)', ['guess']));
+  const { rows: due } = await db.query('select * from public.homework_files_due($1)', [secret]);
+  assert.deepEqual(due.map((d) => d.id), [old.id]);
+  const { rows: [{ n }] } = await db.query('select public.homework_files_removed($1, $2) as n', [secret, [old.id, fresh.id]]);
+  assert.equal(n, 1);
+  const { rows: [h] } = await db.query('select file_path, file_name, files_removed_at from public.homework where id = $1', [old.id]);
+  assert.equal(h.file_path, null);
+  assert.equal(h.file_name, 'notebook.jpg');
+  assert.ok(h.files_removed_at);
+  assert.equal((await db.query('select * from public.homework_files_due($1)', [secret])).rows.length, 0);
+});

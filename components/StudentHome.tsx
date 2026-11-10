@@ -178,7 +178,7 @@ export default async function StudentHome({
                     {lastHw.status === 'checked' && (lastHw.feedback || lastHw.feedback_url) && (
                       <div className="hw-feedback">
                         <strong>{t('hwTeacherSays')}</strong>
-                        <HomeworkView body={lastHw.feedback} url={lastHw.feedback_url} kind={lastHw.feedback_file_kind} name={lastHw.feedback_file_name} />
+                        <HomeworkView body={lastHw.feedback} url={lastHw.feedback_url} kind={lastHw.feedback_file_kind} name={lastHw.feedback_file_name} removed={lastHw.files_removed_at ? t('hwFileRemoved') : undefined} />
                       </div>
                     )}
                   </>

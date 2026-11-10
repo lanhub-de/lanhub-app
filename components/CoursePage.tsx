@@ -198,11 +198,11 @@ export default async function CoursePage({
                                 <span className={`pill ${h.status === 'checked' ? 'ok' : ''}`}>
                                   {h.status === 'checked' ? t('hwChecked') : t('hwSentOn', { date: fmtDate(h.submitted_at, locale) })}
                                 </span>
-                                <HomeworkView body={h.body} url={h.file_url} kind={h.file_kind} name={h.file_name} />
+                                <HomeworkView body={h.body} url={h.file_url} kind={h.file_kind} name={h.file_name} removed={h.files_removed_at ? t('hwFileRemoved') : undefined} />
                                 {h.status === 'checked' && (h.feedback || h.feedback_url) && (
                                   <div className="hw-feedback">
                                     <strong>{t('hwTeacherSays')}</strong>
-                                    <HomeworkView body={h.feedback} url={h.feedback_url} kind={h.feedback_file_kind} name={h.feedback_file_name} />
+                                    <HomeworkView body={h.feedback} url={h.feedback_url} kind={h.feedback_file_kind} name={h.feedback_file_name} removed={h.files_removed_at ? t('hwFileRemoved') : undefined} />
                                   </div>
                                 )}
                               </div>
