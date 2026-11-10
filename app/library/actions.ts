@@ -66,3 +66,27 @@ export async function deleteFile(formData: FormData) {
   await supabase.storage.from('files').remove([file.storage_path]);
   back(here(formData));
 }
+
+// Audio by page: which track plays on which page of a textbook.
+export async function addAudio(formData: FormData) {
+  const fileId = str(formData, 'file_id');
+  const page = Number(str(formData, 'page'));
+  const audioId = str(formData, 'audio_id');
+  const at = `/library/${fileId}`;
+  if (!audioId || !Number.isInteger(page) || page < 1) redirect(`${at}?e=${encodeURIComponent('Choose a track and a page')}`);
+  const supabase = await supabaseServer();
+  const { count } = await supabase.from('file_audio').select('id', { count: 'exact', head: true }).eq('file_id', fileId).eq('page', page);
+  const { error } = await supabase.from('file_audio').insert({
+    file_id: fileId, audio_id: audioId, page, label: str(formData, 'label') || null, position: count ?? 0,
+  });
+  revalidatePath(at);
+  if (error) redirect(`${at}?e=${encodeURIComponent(error.message)}`);
+}
+
+export async function removeAudio(formData: FormData) {
+  const fileId = str(formData, 'file_id');
+  const supabase = await supabaseServer();
+  const { error } = await supabase.from('file_audio').delete().eq('id', str(formData, 'id'));
+  revalidatePath(`/library/${fileId}`);
+  if (error) redirect(`/library/${fileId}?e=${encodeURIComponent(error.message)}`);
+}

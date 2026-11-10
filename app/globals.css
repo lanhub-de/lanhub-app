@@ -537,3 +537,24 @@ button.danger { color: var(--red); border-color: var(--red); background: var(--c
 .pdf-page { display: inline-flex; align-items: center; gap: 6px; margin: 0; }
 .pdf-page input { width: 64px; min-height: 34px; padding: 4px 6px; text-align: center; font-size: 14px; -moz-appearance: textfield; }
 .pdf-page input::-webkit-outer-spin-button, .pdf-page input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+/* Audio next to a textbook */
+.pdf-main { min-width: 0; }
+.pdf-main.with-audio { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; align-items: start; }
+@media (max-width: 900px) { .pdf-main.with-audio { grid-template-columns: minmax(0, 1fr); } }
+.audio-panel { position: sticky; top: 70px; display: flex; flex-direction: column; gap: 10px; font-size: 14px; max-height: calc(100vh - 90px); overflow: auto; }
+.audio-panel h2 { margin: 0; }
+.audio-sub { margin: 0; font-size: 13px; }
+.audio-track { display: flex; flex-direction: column; gap: 6px; padding: 10px; border-radius: 10px; background: var(--sand); }
+.audio-name { display: flex; flex-direction: column; gap: 2px; overflow-wrap: anywhere; }
+.audio-name .muted { font-size: 12px; }
+.audio-track audio, .show-audio audio { width: 100%; height: 36px; }
+.audio-remove { align-self: flex-start; font-size: 12px; color: var(--muted); }
+.audio-add form { margin-top: 8px; }
+.audio-all summary { cursor: pointer; font-weight: 600; }
+.audio-all ul { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.audio-all li { display: flex; gap: 8px; align-items: baseline; font-size: 13px; }
+.audio-all li .link-btn { flex: none; min-width: 52px; text-align: left; }
+.audio-all li .link-btn.on { font-weight: 700; }
+.show-audio { position: absolute; top: 12px; right: 12px; display: flex; flex-direction: column; gap: 8px; width: min(320px, 40vw); padding: 10px; border-radius: 12px; background: rgba(255,255,255,.95); font-size: 13px; z-index: 2; }
+.show-audio > div { display: flex; flex-direction: column; gap: 4px; }

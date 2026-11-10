@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
+import AudioPanel, { type AudioLabels, type AudioOption, type Track } from '@/components/AudioPanel';
 
 type Labels = {
   show: string; exit: string; prev: string; next: string; page: string;
@@ -10,7 +11,10 @@ type Labels = {
 // PDF toolbar. Each page carries a small LanHub footer with the viewer's code.
 // By default the whole page fits the screen (handy for a screenshot for notes);
 // "fit width" and zoom are a click away, and the toolbar stays on top.
-export default function PdfViewer({ url, footer, labels }: { url: string; footer: string; labels: Labels }) {
+export default function PdfViewer({ url, footer, labels, audio }: {
+  url: string; footer: string; labels: Labels;
+  audio?: { fileId: string; tracks: Track[]; labels: AudioLabels; options?: AudioOption[] };
+}) {
   const wrap = useRef<HTMLDivElement>(null);
   const bar = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -142,11 +146,12 @@ export default function PdfViewer({ url, footer, labels }: { url: string; footer
         </span>
         <button type="button" className="primary" onClick={toggleFull}>{full ? labels.exit : labels.show}</button>
       </div>
+      <div className={audio ? 'pdf-main with-audio' : 'pdf-main'}>
       <div
         ref={wrap}
         onContextMenu={(e) => e.preventDefault()}
         style={{
-          background: full ? '#2a2422' : 'transparent', display: 'flex', flexDirection: 'column',
+          position: 'relative', background: full ? '#2a2422' : 'transparent', display: 'flex', flexDirection: 'column',
           alignItems: fit === 'width' || zoom > 1 ? 'flex-start' : 'center', justifyContent: 'center', userSelect: 'none', overflow: 'auto',
         }}
       >
@@ -167,6 +172,22 @@ export default function PdfViewer({ url, footer, labels }: { url: string; footer
             <span>{footer.replace(/^LanHub · ?/, '')} · {page}</span>
           </div>
         </div>
+        {/* in show mode the page's tracks play from the corner (shared screen with sound) */}
+        {full && audio && audio.tracks.some((t) => t.page === page) && (
+          <div className="show-audio">
+            {audio.tracks.filter((t) => t.page === page).map((t) => (
+              <div key={t.id}>
+                <span>🎧 {t.label || t.title}</span>
+                <audio controls controlsList="nodownload" preload="none" src={t.url} />
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      {audio && (
+        <AudioPanel fileId={audio.fileId} tracks={audio.tracks} page={page}
+          setPage={(n) => setPage(Math.min(total || n, Math.max(1, n)))} labels={audio.labels} options={audio.options} />
+      )}
       </div>
     </div>
   );
