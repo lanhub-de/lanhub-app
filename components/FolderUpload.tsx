@@ -2,6 +2,7 @@
 import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabaseBrowser } from '@/lib/supabase/client';
+import { unzipSync } from 'fflate';
 import { folderPath, levelOf, looksTeamOnly, tidyTitle, MAX_BYTES, type Folder } from '@/lib/library';
 
 export type UploadLabels = {
@@ -13,6 +14,30 @@ type Row = { name: string; state: 'wait' | 'up' | 'ok' | 'skip' | 'err'; note?: 
 
 const AUDIO: Record<string, string> = { mp3: 'audio/mpeg', m4a: 'audio/mp4', wav: 'audio/wav', ogg: 'audio/ogg' };
 const ext = (n: string) => (n.split('.').pop() ?? '').toLowerCase();
+
+// Zips made without the UTF-8 flag show Cyrillic names as Latin-1 junk; undo that.
+function fixName(s: string) {
+  if (!/[\u0080-\u00ff]/.test(s) || /[^\u0000-\u00ff]/.test(s)) return s;
+  try { return new TextDecoder('utf-8', { fatal: true }).decode(Uint8Array.from(s, (c) => c.charCodeAt(0))); } catch { return s; }
+}
+
+// A dropped .zip (Drive downloads come zipped) is opened here in the browser;
+// its folders count as if the unzipped folder had been dropped.
+async function openZips(items: Item[]): Promise<Item[]> {
+  const out: Item[] = [];
+  for (const it of items) {
+    if (ext(it.file.name) !== 'zip') { out.push(it); continue; }
+    const entries = unzipSync(new Uint8Array(await it.file.arrayBuffer()), {
+      filter: (f) => !f.name.endsWith('/') && !f.name.startsWith('__MACOSX/') && !f.name.split('/').pop()!.startsWith('.'),
+    });
+    for (const [path, bytes] of Object.entries(entries)) {
+      const parts = path.split('/');
+      const name = parts.pop()!;
+      out.push({ file: new File([bytes as unknown as BlobPart], fixName(name)), dirs: [...it.dirs, ...parts.map(fixName)] });
+    }
+  }
+  return out;
+}
 
 // Reads a dropped folder (and its subfolders) into a flat list of files.
 async function readEntry(entry: FileSystemEntry, dirs: string[], out: Item[]) {
@@ -45,8 +70,15 @@ export default function FolderUpload({ folderId, folders, existing, userId, labe
   const here = folderPath(folders, folderId);
   const hereName = here.at(-1)?.name ?? labels.root;
 
-  async function run(items: Item[]) {
-    if (!items.length || busy) return;
+  async function run(picked: Item[]) {
+    if (!picked.length || busy) return;
+    let items = picked;
+    try { items = await openZips(picked); } catch { /* a broken zip shows up as "not a PDF or audio" */ }
+    // a zip holding one folder (as Drive makes them) is opened through to it
+    while (items.length && items.every((i) => i.dirs.length > 1 && i.dirs[0] === items[0].dirs[0] && i.dirs[1] === items[0].dirs[1])
+      && picked.length === 1 && ext(picked[0].file.name) === 'zip') {
+      items = items.map((i) => ({ ...i, dirs: i.dirs.slice(1) }));
+    }
     // one dropped folder: its contents go into the current folder
     const tops = new Set(items.map((i) => i.dirs[0] ?? ''));
     if (tops.size === 1 && !tops.has('')) {
@@ -159,7 +191,7 @@ export default function FolderUpload({ folderId, folders, existing, userId, labe
           <button type="button" className="small" disabled={busy} onClick={() => filesInput.current?.click()}>{labels.pickFiles}</button>
           <button type="button" className="small" disabled={busy} onClick={() => dirInput.current?.click()}>{labels.pickFolder}</button>
         </div>
-        <input ref={filesInput} type="file" multiple accept="application/pdf,audio/*" hidden onChange={onPick} />
+        <input ref={filesInput} type="file" multiple accept="application/pdf,audio/*,.zip,application/zip" hidden onChange={onPick} />
         <input ref={dirInput} type="file" multiple hidden onChange={onPick}
           {...({ webkitdirectory: '', directory: '' } as Record<string, string>)} />
       </div>
