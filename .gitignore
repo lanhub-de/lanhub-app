@@ -5,3 +5,4 @@ node_modules/
 public/pdf.worker.min.mjs
 supabase/seed/
 *.tsbuildinfo
+supabase/.temp/
