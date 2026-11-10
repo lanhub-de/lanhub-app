@@ -523,3 +523,14 @@ button.danger { color: var(--red); border-color: var(--red); background: var(--c
 .back-btn:hover { border-color: var(--red); color: var(--red); }
 .back-btn > span:first-child { font-size: 17px; line-height: 1; }
 @media (max-width: 700px) { .back-btn { padding: 6px 11px; } .back-btn .back-label { display: none; } }
+
+/* PDF viewer toolbar: stays on top; fit and zoom buttons */
+.pdf-bar { position: sticky; top: 0; z-index: 5; background: var(--ground); padding: 8px 0; }
+.pdf-zoom { display: inline-flex; gap: 4px; padding: 3px; background: var(--sand); border-radius: 12px; }
+.pdf-zoom button { min-height: 34px; padding: 6px 12px; border: 0; background: transparent; font-size: 13px; }
+.pdf-zoom button.on { background: var(--card); box-shadow: 0 1px 2px rgba(0,0,0,.08); font-weight: 600; }
+@media (max-width: 600px) {
+  .pdf-bar { gap: 6px; }
+  .pdf-bar > button { min-height: 34px; padding: 6px 10px; font-size: 13px; }
+  .pdf-zoom button { padding: 6px 9px; }
+}
