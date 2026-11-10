@@ -57,7 +57,10 @@ export default async function ViewFile({ params, searchParams }: { params: Promi
       <h1>{file.title}{file.staff_only ? <span className="pill" style={{ marginLeft: 10, verticalAlign: 'middle' }}>🔒 {t('libTeamOnly')}</span> : null}</h1>
       <Flash error={e} />
       {isAudio(file.mime) ? (
-        <audio className="audio-file" controls controlsList="nodownload" preload="metadata" src={signed.signedUrl} />
+        <div className="stack">
+          <audio className="audio-file" controls preload="metadata" src={signed.signedUrl} />
+          <p><a className="audio-dl" href={`${signed.signedUrl}&download=${encodeURIComponent(`${file.title}.mp3`)}`}>⬇ {t('audDownload')}</a></p>
+        </div>
       ) : (
         <PdfViewer
           url={signed.signedUrl}
@@ -68,7 +71,7 @@ export default async function ViewFile({ params, searchParams }: { params: Promi
             ...audio,
             labels: {
               title: t('libAudio'), onPage: t('audOnPage'), none: t('audNone'), all: t('audAll'), page: t('audPage'),
-              add: t('audAdd'), track: t('audTrack'), label: t('audLabel'), labelHint: t('audLabelHint'), remove: t('audRemove'),
+              add: t('audAdd'), track: t('audTrack'), label: t('audLabel'), labelHint: t('audLabelHint'), remove: t('audRemove'), download: t('audDownload'),
             },
           } : undefined}
         />

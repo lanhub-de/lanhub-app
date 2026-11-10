@@ -38,9 +38,8 @@ export default async function ProgramPage({ params, searchParams }: {
   // library files by folder; team-only ones can go on a course for teachers only
   const libGroups = (() => {
     const folders = folderRows.data ?? [];
-    const m = new Map<string, { id: string; title: string; staff_only: boolean }[]>();
+    const m = new Map<string, { id: string; title: string; staff_only: boolean; mime: string }[]>();
     for (const f of library.data ?? []) {
-      if (isAudio(f.mime)) continue;
       const g = pathLabel(folders, f.folder_id) || t('libNoFolder');
       m.set(g, [...(m.get(g) ?? []), f]);
     }
@@ -54,7 +53,7 @@ export default async function ProgramPage({ params, searchParams }: {
         <option value="" disabled>{t('attachFile')}</option>
         {libGroups.map(([g, files]) => (
           <optgroup key={g} label={g}>
-            {files.map((f) => <option key={f.id} value={f.id}>{f.title}{f.staff_only ? ` · 🔒 ${t('libTeamOnly')}` : ''}</option>)}
+            {files.map((f) => <option key={f.id} value={f.id}>{isAudio(f.mime) ? '🎧 ' : ''}{f.title}{f.staff_only ? ` · 🔒 ${t('libTeamOnly')}` : ''}</option>)}
           </optgroup>
         ))}
       </select>

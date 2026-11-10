@@ -2,7 +2,7 @@ import Link from 'next/link';
 import Shell, { Flash } from '@/components/Shell';
 import GroupLessonCard, { type Member } from '@/components/GroupLessonCard';
 import TodayLessonCard, { type FileRef } from '@/components/TodayLessonCard';
-import { pickerGroups, type Folder, type LibFile } from '@/lib/library';
+import { isAudio, pickerGroups, type Folder, type LibFile } from '@/lib/library';
 import ScheduleLesson from '@/components/ScheduleLesson';
 import { requireProfile, TEACHING } from '@/lib/session';
 import { currentMonthStart, fmtDate, fmtDateTime, fmtMoney, fmtMonth, kyivLocalToIso, SCHOOL_TZ } from '@/lib/i18n';
@@ -94,9 +94,9 @@ export default async function TeacherPage({ searchParams }: { searchParams: Prom
       .eq('visibility', 'library').eq('staff_only', false).order('title').returns<LibFile[]>(),
     supabase.from('library_folders').select('id, name, parent_id').returns<Folder[]>(),
   ]);
-  // "+ from the library": grouped by folder, teacher guides and audio left out
+  // "+ from the library": grouped by folder, teacher guides left out; audio for listening homework
   const libraryRefs: FileRef[] = pickerGroups(libraryFiles.data ?? [], libraryFolders.data ?? [], t('libNoFolder'))
-    .flatMap(([group, files]) => files.map((f) => ({ id: f.id, title: f.title, level: f.level, group })));
+    .flatMap(([group, files]) => files.map((f) => ({ id: f.id, title: f.title, level: f.level, group, audio: isAudio(f.mime) })));
   const materialsOf = (lid: string) => (attached.data ?? []).filter((a) => a.lesson_id === lid && a.files).map((a) => a.files!);
   const membersOf = (gid: string): Member[] => (memberRows.data ?? [])
     .filter((m) => m.group_id === gid).map((m) => ({ student_id: m.student_id, name: m.students?.full_name ?? '' }))

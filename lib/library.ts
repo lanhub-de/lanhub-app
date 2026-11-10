@@ -50,7 +50,7 @@ export function fmtSize(bytes: number | null) {
 export function pickerGroups(files: LibFile[], folders: Folder[], noFolder: string) {
   const groups = new Map<string, LibFile[]>();
   for (const f of files) {
-    if (f.staff_only || isAudio(f.mime)) continue;
+    if (f.staff_only) continue;
     const label = pathLabel(folders, f.folder_id) || noFolder;
     groups.set(label, [...(groups.get(label) ?? []), f]);
   }

@@ -7,7 +7,7 @@ import { attachLessonFile, detachLessonFile, moveLesson, saveLessonPlan, setLess
 import LessonFileUpload from '@/components/LessonFileUpload';
 import Submit from '@/components/Submit';
 
-export type FileRef = { id: string; title: string; level?: string | null; group?: string };
+export type FileRef = { id: string; title: string; level?: string | null; group?: string; audio?: boolean };
 
 const OTHER = ['late_cancel', 'cancelled', 'force_majeure'];
 
@@ -139,7 +139,7 @@ export default function TodayLessonCard({
                 <option value="" disabled>…</option>
                 {[...new Set(library.map((f) => f.group ?? ''))].map((g) => {
                   const opts = library.filter((f) => (f.group ?? '') === g && !materials.some((m) => m.id === f.id)).map((f) => (
-                    <option key={f.id} value={f.id}>{f.title}{f.level && !g.includes(f.level) ? ` · ${f.level}` : ''}</option>
+                    <option key={f.id} value={f.id}>{f.audio ? '🎧 ' : ''}{f.title}{f.level && !g.includes(f.level) ? ` · ${f.level}` : ''}</option>
                   ));
                   return g ? <optgroup key={g} label={g}>{opts}</optgroup> : opts;
                 })}

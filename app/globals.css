@@ -558,3 +558,6 @@ button.danger { color: var(--red); border-color: var(--red); background: var(--c
 .audio-all li .link-btn.on { font-weight: 700; }
 .show-audio { position: absolute; top: 12px; right: 12px; display: flex; flex-direction: column; gap: 8px; width: min(320px, 40vw); padding: 10px; border-radius: 12px; background: rgba(255,255,255,.95); font-size: 13px; z-index: 2; }
 .show-audio > div { display: flex; flex-direction: column; gap: 4px; }
+.audio-dl { font-size: 13px; font-weight: 600; color: var(--red); text-decoration: none; }
+.audio-dl:hover { text-decoration: underline; }
+.audio-remove-form { margin-top: -2px; }

@@ -178,7 +178,7 @@ export default function PdfViewer({ url, footer, labels, audio }: {
             {audio.tracks.filter((t) => t.page === page).map((t) => (
               <div key={t.id}>
                 <span>🎧 {t.label || t.title}</span>
-                <audio controls controlsList="nodownload" preload="none" src={t.url} />
+                <audio controls preload="none" src={t.url} />
               </div>
             ))}
           </div>

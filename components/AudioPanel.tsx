@@ -6,7 +6,7 @@ export type Track = { id: string; page: number; label: string | null; title: str
 export type AudioOption = { id: string; title: string; group: string };
 export type AudioLabels = {
   title: string; onPage: string; none: string; all: string; page: string; add: string;
-  track: string; label: string; labelHint: string; remove: string;
+  track: string; label: string; labelHint: string; remove: string; download: string;
 };
 
 // Next to a textbook: the tracks for the page on screen, then every track by
@@ -28,9 +28,11 @@ export default function AudioPanel({ fileId, tracks, page, setPage, labels, opti
             <strong>{t.label || t.title}</strong>
             {t.label && <span className="muted">{t.title}</span>}
           </div>
-          <audio controls controlsList="nodownload" preload="none" src={t.url} />
+          <audio controls preload="none" src={t.url} />
+          {/* teachers keep tracks on their computer for lessons */}
+          <a className="audio-dl" href={`${t.url}&download=${encodeURIComponent(`${t.title}.mp3`)}`}>⬇ {labels.download}</a>
           {options && (
-            <form action={removeAudio}>
+            <form action={removeAudio} className="audio-remove-form">
               <input type="hidden" name="id" value={t.id} />
               <input type="hidden" name="file_id" value={fileId} />
               <button type="submit" className="link-btn audio-remove">{labels.remove}</button>
