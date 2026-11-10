@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 
 type Labels = {
   show: string; exit: string; prev: string; next: string; page: string;
-  fitPage?: string; fitWidth?: string; zoomIn?: string; zoomOut?: string;
+  fitPage?: string; fitWidth?: string; zoomIn?: string; zoomOut?: string; goTo?: string;
 };
 
 // Renders a PDF page by page onto a canvas: no download button, no browser
@@ -20,6 +20,7 @@ export default function PdfViewer({ url, footer, labels }: { url: string; footer
   const scrolled = useRef(false);
   const [doc, setDoc] = useState<import('pdfjs-dist').PDFDocumentProxy | null>(null);
   const [page, setPage] = useState(1);
+  const [draft, setDraft] = useState('1');
   const [full, setFull] = useState(false);
   const [error, setError] = useState('');
 
@@ -39,6 +40,8 @@ export default function PdfViewer({ url, footer, labels }: { url: string; footer
     })();
     return () => { cancelled = true; };
   }, [url]);
+
+  useEffect(() => { setDraft(String(page)); }, [page]);
 
   useEffect(() => {
     if (!doc || !canvas.current) return;
@@ -72,7 +75,7 @@ export default function PdfViewer({ url, footer, labels }: { url: string; footer
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (!doc) return;
+      if (!doc || (e.target as HTMLElement | null)?.tagName === 'INPUT') return;
       if (e.key === 'ArrowRight' || e.key === 'PageDown') setPage((n) => Math.min(doc.numPages, n + 1));
       if (e.key === 'ArrowLeft' || e.key === 'PageUp') setPage((n) => Math.max(1, n - 1));
     };
@@ -101,7 +104,29 @@ export default function PdfViewer({ url, footer, labels }: { url: string; footer
     <div className="stack">
       <div className="row pdf-bar" ref={bar}>
         <button type="button" onClick={() => setPage((n) => Math.max(1, n - 1))} disabled={page <= 1}>{labels.prev}</button>
-        <span className="muted">{labels.page.replace('{n}', String(page)).replace('{total}', String(total || '…'))}</span>
+        {/* type a page number (from the notes) and press Enter */}
+        <form
+          className="pdf-page muted"
+          noValidate
+          onSubmit={(e) => {
+            e.preventDefault();
+            const n = Math.round(Number(draft));
+            const to = total && Number.isFinite(n) ? Math.min(total, Math.max(1, n)) : page;
+            setPage(to);
+            setDraft(String(to));
+            (e.currentTarget.elements.namedItem('p') as HTMLInputElement | null)?.blur();
+          }}
+        >
+          <span>{labels.page.split('{n}')[0]}</span>
+          <input
+            name="p" type="number" inputMode="numeric" min={1} max={total || undefined} value={draft}
+            aria-label={labels.goTo ?? 'Go to page'} title={labels.goTo ?? 'Go to page'}
+            onChange={(e) => setDraft(e.target.value)}
+            onFocus={(e) => e.target.select()}
+            onBlur={() => { const n = Math.round(Number(draft)); if (total && n >= 1 && n <= total) setPage(n); else setDraft(String(page)); }}
+          />
+          <span>{(labels.page.split('{n}')[1] ?? '').replace('{total}', String(total || '…'))}</span>
+        </form>
         <button type="button" onClick={() => setPage((n) => Math.min(total, n + 1))} disabled={!total || page >= total}>{labels.next}</button>
         <span className="pdf-zoom">
           <button type="button" className={fit === 'page' && zoom === 1 ? 'on' : ''} onClick={() => { setFit('page'); setZoom(1); }}>

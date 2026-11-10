@@ -534,3 +534,6 @@ button.danger { color: var(--red); border-color: var(--red); background: var(--c
   .pdf-bar > button { min-height: 34px; padding: 6px 10px; font-size: 13px; }
   .pdf-zoom button { padding: 6px 9px; }
 }
+.pdf-page { display: inline-flex; align-items: center; gap: 6px; margin: 0; }
+.pdf-page input { width: 64px; min-height: 34px; padding: 4px 6px; text-align: center; font-size: 14px; -moz-appearance: textfield; }
+.pdf-page input::-webkit-outer-spin-button, .pdf-page input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }

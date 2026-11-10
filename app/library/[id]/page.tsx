@@ -30,7 +30,7 @@ export default async function ViewFile({ params }: { params: Promise<{ id: strin
           url={signed.signedUrl}
           footer={`LanHub${file.level ? ` · ${file.level}` : ''} · ${profile.viewer_code}`}
           labels={{ show: t('showMode'), exit: t('exitShow'), prev: t('pdfPrev'), next: t('pdfNext'), page: t('page'),
-            fitPage: t('pdfFitPage'), fitWidth: t('pdfFitWidth'), zoomIn: t('pdfZoomIn'), zoomOut: t('pdfZoomOut') }}
+            fitPage: t('pdfFitPage'), fitWidth: t('pdfFitWidth'), zoomIn: t('pdfZoomIn'), zoomOut: t('pdfZoomOut'), goTo: t('pdfGoTo') }}
         />
       )}
     </Shell>
