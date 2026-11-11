@@ -15,6 +15,13 @@ export async function whoseCabinet(
   if (!as || !(me.role === 'owner' || me.role === 'head_teacher')) return own;
   if (as.startsWith(INVITE)) {
     const email = as.slice(INVITE.length);
+    // She may have signed in since this link was made: her students and
+    // lessons have moved to her profile, so open her real cabinet.
+    const { data: joined } = await supabase.from('profiles').select('id, full_name, role')
+      .in('email', [...new Set([email, email.toLowerCase()])]).limit(1).maybeSingle();
+    if (joined && ['teacher', 'head_teacher', 'owner'].includes(joined.role)) {
+      return { id: joined.id, pending: null, name: joined.full_name, viewing: joined.id !== me.id };
+    }
     const { data: name } = await supabase.rpc('pending_name', { e: email });
     return { id: me.id, pending: email, name: (name as string | null) ?? email, viewing: true };
   }
