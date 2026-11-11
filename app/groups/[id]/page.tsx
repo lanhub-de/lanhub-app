@@ -8,6 +8,7 @@ import { splitStudentName } from '@/lib/names';
 import { addMember, archiveGroup, continueGroup, removeMember, updateGroup } from '../actions';
 import GroupLessonCard from '@/components/GroupLessonCard';
 import { LESSON_SELECT, type LessonDb } from '@/lib/lessons';
+import Submit from '@/components/Submit';
 
 type LessonRowDb = {
   id: string; starts_at: string; status: string; recording_url: string | null; teacher_id: string;
@@ -138,9 +139,9 @@ export default async function GroupPage({ params, searchParams }: {
             <form action={continueGroup} className="stack" style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid var(--sand)' }}>
               <input type="hidden" name="id" value={g.id} />
               <p className="muted" style={{ margin: 0 }}>{t('continueHint')}</p>
-              <div><button type="submit" className="btn" style={{ borderColor: 'var(--red)', color: 'var(--red)' }}>
+              <div><Submit className="btn" style={{ borderColor: 'var(--red)', color: 'var(--red)' }}>
                 {t('continueTo', { program: nextProgram.title })}
-              </button></div>
+              </Submit></div>
             </form>
           )}
         </section>
@@ -172,7 +173,7 @@ export default async function GroupPage({ params, searchParams }: {
                     <form action={removeMember}>
                       <input type="hidden" name="group_id" value={g.id} />
                       <input type="hidden" name="student_id" value={m.student_id} />
-                      <button className="small" type="submit">{t('remove')}</button>
+                      <Submit className="small">{t('remove')}</Submit>
                     </form>
                   )}
                 </span>
@@ -200,7 +201,7 @@ export default async function GroupPage({ params, searchParams }: {
                       <option value="ua">{t('market_ua')}</option>
                     </select>
                   </label>
-                  <button className="primary" type="submit">{t('add')}</button>
+                  <Submit className="primary">{t('add')}</Submit>
                 </form>
               </details>
             )}
@@ -221,11 +222,11 @@ export default async function GroupPage({ params, searchParams }: {
                 <label>{t('zoomLink')}<input name="zoom_url" type="url" defaultValue={g.zoom_url ?? ''} /></label>
                 <label>{t('capacity')}<input name="capacity" type="number" min={1} defaultValue={g.capacity ?? 10} /></label>
                 <p className="muted" style={{ margin: 0 }}>{t('groupSettingsHint')}</p>
-                <button className="primary" type="submit">{t('save')}</button>
+                <Submit className="primary">{t('save')}</Submit>
               </form>
               <form action={archiveGroup} style={{ marginTop: 12 }}>
                 <input type="hidden" name="id" value={g.id} />
-                <button className="small" type="submit">{t('archiveGroup')}</button>
+                <Submit className="small">{t('archiveGroup')}</Submit>
               </form>
             </details>
           )}

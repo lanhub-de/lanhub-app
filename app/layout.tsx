@@ -1,6 +1,8 @@
 import './globals.css';
 import type { Metadata, Viewport } from 'next';
+import { Suspense } from 'react';
 import UpdateWatcher from '@/components/UpdateWatcher';
+import NavProgress from '@/components/NavProgress';
 
 export const metadata: Metadata = {
   title: 'LanHub',
@@ -22,7 +24,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           rel="stylesheet"
         />
       </head>
-      <body>{children}<UpdateWatcher /></body>
+      <body><Suspense fallback={null}><NavProgress /></Suspense>{children}<UpdateWatcher /></body>
     </html>
   );
 }

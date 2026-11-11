@@ -5,6 +5,7 @@ import ChatRoom, { type ChatMessage } from '@/components/ChatRoom';
 import PushToggle from '@/components/PushToggle';
 import { requireProfile } from '@/lib/session';
 import { openChat } from './actions';
+import Submit from '@/components/Submit';
 
 type Chat = {
   id: string; kind: 'group' | 'direct' | 'school'; title: string; subtitle: string | null;
@@ -128,7 +129,7 @@ export default async function ChatPage({
                   {pickTeacher.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
                 </select>
               </label>
-              <button className="small" type="submit">{t('chatOpen')}</button>
+              <Submit className="small">{t('chatOpen')}</Submit>
             </form>
           )}
           {pickSchool.length > 0 && (
@@ -140,7 +141,7 @@ export default async function ChatPage({
                   {pickSchool.map((s) => <option key={s.id} value={s.id}>{s.full_name}</option>)}
                 </select>
               </label>
-              <button className="small" type="submit">{t('chatOpen')}</button>
+              <Submit className="small">{t('chatOpen')}</Submit>
             </form>
           )}
         </aside>

@@ -8,6 +8,7 @@ import { LESSON_SELECT, toView, type LessonDb } from '@/lib/lessons';
 import { INVITE, pendingTeachers } from '@/lib/invites';
 import InviteStudent from '@/components/InviteStudent';
 import { addPackage, addToGroup, deleteStudent, extendPackage, updateStudent } from '../../actions';
+import Submit from '@/components/Submit';
 
 export default async function StudentPage({
   params, searchParams,
@@ -72,7 +73,7 @@ export default async function StudentPage({
                   <input type="hidden" name="student_id" value={id} />
                   <input type="hidden" name="package_id" value={p.package_id} />
                   <input name="days" type="number" min={1} defaultValue={7} style={{ width: 80 }} aria-label="days" />
-                  <button className="small" type="submit">+ {t('st_force_majeure')}</button>
+                  <Submit className="small">+ {t('st_force_majeure')}</Submit>
                 </form>
               )}
             </div>
@@ -94,7 +95,7 @@ export default async function StudentPage({
                   </select>
                 </label>
                 <label>{t('method')}<input name="method" placeholder="WayForPay, monobank…" /></label>
-                <button className="primary" type="submit">{t('add')}</button>
+                <Submit className="primary">{t('add')}</Submit>
               </form>
             </details>
           )}
@@ -133,7 +134,7 @@ export default async function StudentPage({
               </select>
             </label>
             <label>{t('note')}<textarea name="notes" defaultValue={s.notes ?? ''} /></label>
-            <button className="primary" type="submit">{t('save')}</button>
+            <Submit className="primary">{t('save')}</Submit>
           </form>
 
           <div className="card stack">
@@ -150,7 +151,7 @@ export default async function StudentPage({
                 <option value="" disabled>…</option>
                 {(groups.data ?? []).filter((g) => !inGroups.has(g.id)).map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
               </select>
-              <button className="small" type="submit">{t('add')}</button>
+              <Submit className="small">{t('add')}</Submit>
             </form>
           </div>
 
@@ -164,7 +165,7 @@ export default async function StudentPage({
                   <input type="checkbox" name="sure" value="1" required />
                   {t('deleteStudentSure', { name: s.full_name })}
                 </label>
-                <button className="small" type="submit">{t('deleteStudent')}</button>
+                <Submit className="small">{t('deleteStudent')}</Submit>
               </form>
             </details>
           )}

@@ -1,6 +1,7 @@
 import type { Locale, T } from '@/lib/i18n';
 import { fmtDateTime } from '@/lib/i18n';
 import { setLessonStatus } from '@/app/teacher/actions';
+import Submit from '@/components/Submit';
 
 export type LessonView = {
   id: string;
@@ -44,7 +45,7 @@ export default function LessonRow({
                 <input type="hidden" name="id" value={lesson.id} />
                 <input type="hidden" name="status" value="done" />
                 <input type="hidden" name="return_to" value={returnTo} />
-                <button className="primary small" type="submit">{t('markDone')}</button>
+                <Submit className="primary small">{t('markDone')}</Submit>
               </form>
             )}
             <form action={setLessonStatus} className="row">
@@ -56,7 +57,7 @@ export default function LessonRow({
                   <option key={s} value={s}>{t(`st_${s}` as never)}</option>
                 ))}
               </select>
-              <button className="small" type="submit">OK</button>
+              <Submit className="small">OK</Submit>
             </form>
           </>
         )}

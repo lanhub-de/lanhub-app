@@ -78,7 +78,7 @@ export default async function StudentFolder({
               <input type="hidden" name="kind" value="direct" />
               <input type="hidden" name="student_id" value={s.id} />
               <input type="hidden" name="teacher_id" value={who.id} />
-              <button className="primary" type="submit">💬 {t('write')}</button>
+              <Submit className="primary">💬 {t('write')}</Submit>
             </form>
           )}
         </div>

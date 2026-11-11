@@ -1,18 +1,19 @@
 'use client';
 import { useFormStatus } from 'react-dom';
 
+type Props = Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, 'type' | 'formAction'> & {
+  ariaLabel?: string; ariaPressed?: boolean;
+  formAction?: (formData: FormData) => void | Promise<void>;
+};
+
 // A submit button that shows at once that the tap was taken, while the
 // change is saved and the page refreshes in place.
-export default function Submit({
-  children, className = '', title, ariaLabel, ariaPressed, formAction,
-}: {
-  children: React.ReactNode; className?: string; title?: string; ariaLabel?: string; ariaPressed?: boolean;
-  formAction?: (formData: FormData) => void | Promise<void>;
-}) {
+export default function Submit({ children, className = '', ariaLabel, ariaPressed, formAction, disabled, ...rest }: Props) {
   const { pending } = useFormStatus();
   return (
-    <button type="submit" formAction={formAction} className={`${className} ${pending ? 'is-pending' : ''}`} disabled={pending}
-      title={title} aria-label={ariaLabel} aria-pressed={ariaPressed} aria-busy={pending}>
+    <button {...rest} type="submit" formAction={formAction} className={`${className} ${pending ? 'is-pending' : ''}`.trim()}
+      disabled={pending || disabled} aria-label={ariaLabel ?? rest['aria-label']} aria-pressed={ariaPressed ?? rest['aria-pressed']}
+      aria-busy={pending}>
       {children}
     </button>
   );

@@ -7,6 +7,7 @@ import StudentShell from '@/components/StudentShell';
 import LocaleMark from '@/components/LocaleMark';
 import BackButton from '@/components/BackButton';
 import { Suspense } from 'react';
+import Submit from '@/components/Submit';
 
 type NavItem = { href: string; label: string };
 
@@ -90,12 +91,12 @@ export default function Shell({
           </Link>
           <form action={setLocale} className="lang-switch">
             <input type="hidden" name="locale" value={profile.locale === 'en' ? 'uk' : 'en'} />
-            <button type="submit" className="small" aria-label={profile.locale === 'en' ? 'Українська' : 'English'}>
+            <Submit className="small" aria-label={profile.locale === 'en' ? 'Українська' : 'English'}>
               <span className={profile.locale === 'en' ? 'on' : ''}>EN</span>
               <span className={profile.locale === 'uk' ? 'on' : ''}>UA</span>
-            </button>
+            </Submit>
           </form>
-          <form action={signOut}><button className="small" type="submit">{t('signOut')}</button></form>
+          <form action={signOut}><Submit className="small">{t('signOut')}</Submit></form>
         </div>
       </header>
       {side ? (

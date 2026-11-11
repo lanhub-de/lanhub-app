@@ -3,6 +3,7 @@ import Shell, { Flash } from '@/components/Shell';
 import { requireProfile } from '@/lib/session';
 import { currentMonthStart, fmtDate, fmtMoney, fmtMonth } from '@/lib/i18n';
 import { addAllowance, addRate, endAllowance, invitePerson, resendInvite, setActive } from '../actions';
+import Submit from '@/components/Submit';
 
 type Rate = {
   id: string; teacher_id: string; kind: string; band: string | null; market: string | null;
@@ -60,7 +61,7 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
           <label>{t('language')}
             <select name="locale" defaultValue="en"><option value="en">English</option><option value="uk">Українська</option></select>
           </label>
-          <button className="primary" type="submit">{t('invite')}</button>
+          <Submit className="primary">{t('invite')}</Submit>
         </form>
       </details>
 
@@ -76,7 +77,7 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
                 )}
                 <form action={resendInvite}>
                   <input type="hidden" name="email" value={i.email} />
-                  <button className="small" type="submit">{t('sendInvite')}</button>
+                  <Submit className="small">{t('sendInvite')}</Submit>
                 </form>
               </span>
             </div>
@@ -137,7 +138,7 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
                 <label>{t('amount')}<input name="amount" type="number" step="0.01" required /></label>
                 <label>{t('rateSteps')}<input name="steps" placeholder={t('rateStepsHint')} /></label>
                 <label>{t('validFrom')}<input name="valid_from" type="date" /></label>
-                <button type="submit">{t('addRate')}</button>
+                <Submit>{t('addRate')}</Submit>
               </form>
 
               <h2 style={{ marginTop: 20 }}>{t('allowances')}</h2>
@@ -151,7 +152,7 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
                   {!a.ends_on && (
                     <form action={endAllowance}>
                       <input type="hidden" name="id" value={a.id} />
-                      <button className="small" type="submit">{t('stopAllowance')}</button>
+                      <Submit className="small">{t('stopAllowance')}</Submit>
                     </form>
                   )}
                 </div>
@@ -164,13 +165,13 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
                   <select name="currency" defaultValue="UAH"><option value="UAH">UAH</option><option value="EUR">EUR</option><option value="USD">USD</option></select>
                 </label>
                 <label>{t('fromMonth')}<input name="starts_on" type="month" defaultValue={thisMonth.slice(0, 7)} /></label>
-                <button type="submit">{t('addAllowance')}</button>
+                <Submit>{t('addAllowance')}</Submit>
               </form>
               {p.id !== profile.id && (
                 <form action={setActive} style={{ marginTop: 12 }}>
                   <input type="hidden" name="id" value={p.id} />
                   <input type="hidden" name="active" value={p.active ? 'false' : 'true'} />
-                  <button className="small" type="submit">{p.active ? '⏸ off' : '▶ on'}</button>
+                  <Submit className="small">{p.active ? '⏸ off' : '▶ on'}</Submit>
                 </form>
               )}
             </details>
@@ -184,7 +185,7 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
               <form action={setActive}>
                 <input type="hidden" name="id" value={p.id} />
                 <input type="hidden" name="active" value={p.active ? 'false' : 'true'} />
-                <button className="small" type="submit">{p.active ? '⏸ off' : '▶ on'}</button>
+                <Submit className="small">{p.active ? '⏸ off' : '▶ on'}</Submit>
               </form>
             </span>
           </div>

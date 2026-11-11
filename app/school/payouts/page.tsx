@@ -3,6 +3,7 @@ import { requireProfile } from '@/lib/session';
 import { currentMonthStart, fmtDateTime, fmtMoney, fmtMonth } from '@/lib/i18n';
 import { syncAllowances } from '@/lib/allowances';
 import { addAdjustment, setPayoutStatus } from '../actions';
+import Submit from '@/components/Submit';
 
 type PayLine = {
   amount: number; currency: string; teacher_id: string;
@@ -39,7 +40,7 @@ export default async function PayoutsPage({
         <select name="month" defaultValue={month} aria-label={t('month')}>
           {months.map((m) => <option key={m} value={m}>{fmtMonth(m, profile.locale)}</option>)}
         </select>
-        <button type="submit">OK</button>
+        <Submit>OK</Submit>
         <a href={`/school/payouts/export?month=${month}`} className="btn">{t('exportCsv')}</a>
       </form>
 
@@ -90,9 +91,9 @@ export default async function PayoutsPage({
                     <input type="hidden" name="teacher_id" value={r.teacher_id} />
                     <input type="hidden" name="month" value={month} />
                     <input type="hidden" name="status" value={st} />
-                    <button className={st === 'paid' ? 'primary small' : 'small'} type="submit">
+                    <Submit className={st === 'paid' ? 'primary small' : 'small'}>
                       {t(st === 'paid' ? 'markPaid' : 'markChecked')}
-                    </button>
+                    </Submit>
                   </form>
                 ))}
               </div>
@@ -113,7 +114,7 @@ export default async function PayoutsPage({
           </label>
           <label>{t('description')}<input name="description" required placeholder="Zoom" /></label>
           <label>{t('amount')}<input name="amount" type="number" step="0.01" required /></label>
-          <button className="primary" type="submit">{t('add')}</button>
+          <Submit className="primary">{t('add')}</Submit>
         </form>
       </details>
     </Shell>

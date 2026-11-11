@@ -4,6 +4,7 @@ import { requireProfile, STAFF } from '@/lib/session';
 import { currentMonthStart, fmtMonth } from '@/lib/i18n';
 import { LESSON_SELECT, toView, type LessonDb } from '@/lib/lessons';
 import { addLesson } from '@/app/teacher/actions';
+import Submit from '@/components/Submit';
 
 function monthRange(month: string) {
   const [y, m] = month.split('-').map(Number);
@@ -50,7 +51,7 @@ export default async function LessonsPage({
           <option value="">{t('allTeachers')}</option>
           {(teachers.data ?? []).map((p) => <option key={p.id} value={p.id}>{p.full_name}</option>)}
         </select>
-        <button type="submit">OK</button>
+        <Submit>OK</Submit>
       </form>
 
       <details className="card" style={{ marginBottom: 16 }}>
@@ -77,7 +78,7 @@ export default async function LessonsPage({
           </label>
           <label>{t('date')} · {t('time')}<input type="datetime-local" name="starts_at" required /></label>
           <label>{t('zoomLink')}<input type="url" name="zoom_url" /></label>
-          <button className="primary" type="submit">{t('add')}</button>
+          <Submit className="primary">{t('add')}</Submit>
         </form>
       </details>
 

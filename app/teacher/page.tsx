@@ -9,6 +9,7 @@ import { currentMonthStart, fmtDate, fmtDateTime, fmtMoney, fmtMonth, kyivLocalT
 import { openChat } from '@/app/chat/actions';
 import { LESSON_SELECT as select, type LessonDb } from '@/lib/lessons';
 import { asParam, CabinetSwitch, onlyTheirs, whoseCabinet } from '@/lib/cabinet';
+import Submit from '@/components/Submit';
 
 type PayLine = {
   amount: number; currency: string;
@@ -202,7 +203,7 @@ export default async function TeacherPage({ searchParams }: { searchParams: Prom
                         <input type="hidden" name="kind" value="direct" />
                         <input type="hidden" name="student_id" value={s.id} />
                         <input type="hidden" name="teacher_id" value={who.id} />
-                        <button type="submit" className="link-btn">{t('write')}</button>
+                        <Submit className="link-btn">{t('write')}</Submit>
                       </form>
                     )}
                   </div>

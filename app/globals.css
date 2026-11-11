@@ -279,6 +279,13 @@ a.file-chip { color: var(--ink); text-decoration: none; }
 button.is-pending { opacity: .6; cursor: progress; }
 button.is-pending::after { content: ' …'; }
 
+/* top bar while the next page loads */
+.nav-progress { position: fixed; top: 0; left: 0; z-index: 1000; height: 3px; width: 0; background: var(--red);
+  box-shadow: 0 0 6px rgba(163, 0, 0, .4); animation: nav-grow 10s cubic-bezier(.08, .7, .2, 1) forwards; pointer-events: none; }
+.nav-progress.done { width: 100%; animation: none; opacity: 0; transition: opacity .3s ease .1s; }
+@keyframes nav-grow { 0% { width: 0; } 8% { width: 40%; } 100% { width: 92%; } }
+@media (prefers-reduced-motion: reduce) { .nav-progress { animation-duration: .01s; width: 92%; } }
+
 /* student home */
 .list-row { padding: 9px 0; border-bottom: 1px solid var(--sand); color: var(--ink); text-decoration: none; }
 .list-row:last-child { border-bottom: 0; }

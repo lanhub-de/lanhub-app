@@ -3,6 +3,7 @@ import Shell, { Flash } from '@/components/Shell';
 import { requireProfile, STAFF } from '@/lib/session';
 import { addGroup, addStudent } from '../actions';
 import { INVITE, pendingTeachers } from '@/lib/invites';
+import Submit from '@/components/Submit';
 
 export default async function StudentsPage({ searchParams }: { searchParams: Promise<{ e?: string; q?: string }> }) {
   const { supabase, profile, t } = await requireProfile(STAFF);
@@ -49,7 +50,7 @@ export default async function StudentsPage({ searchParams }: { searchParams: Pro
           </label>
           <label>{t('emailLabel')}<input type="email" name="email" /></label>
           <label>{t('contact')}<input name="contact" /></label>
-          <button className="primary" type="submit">{t('add')}</button>
+          <Submit className="primary">{t('add')}</Submit>
         </form>
       </details>
 
@@ -107,7 +108,7 @@ export default async function StudentsPage({ searchParams }: { searchParams: Pro
                   {(teachers.data ?? []).map((p) => <option key={p.id} value={p.id}>{p.full_name}</option>)}
                 </select>
               </label>
-              <button type="submit">{t('add')}</button>
+              <Submit>{t('add')}</Submit>
             </form>
           </div>
         </details>

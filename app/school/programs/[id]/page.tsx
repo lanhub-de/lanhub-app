@@ -5,6 +5,7 @@ import RichText from '@/components/RichText';
 import { requireProfile } from '@/lib/session';
 import { isAudio, pathLabel, type Folder } from '@/lib/library';
 import { addProgramLesson, attachFile, detachFile, saveProgramLesson, updateProgram } from '@/app/groups/actions';
+import Submit from '@/components/Submit';
 
 type PL = {
   id: string; n: number; title: string; topic: string | null; goal: string | null; rule: string | null; prepare: string | null;
@@ -61,7 +62,7 @@ export default async function ProgramPage({ params, searchParams }: {
         <option value="true">{t('forStudents')}</option>
         <option value="false">{t('teachersOnly')}</option>
       </select>
-      <button className="small" type="submit">{t('add')}</button>
+      <Submit className="small">{t('add')}</Submit>
     </form>
   );
   const fileList = (items: FileLink[], lessonId: string | null) => items.map((f) => (
@@ -73,7 +74,7 @@ export default async function ProgramPage({ params, searchParams }: {
           <input type="hidden" name="program_id" value={id} />
           <input type="hidden" name="program_lesson_id" value={lessonId ?? ''} />
           <input type="hidden" name="file_id" value={f.file_id} />
-          <button className="small" type="submit">{t('remove')}</button>
+          <Submit className="small">{t('remove')}</Submit>
         </form>
       </span>
     </div>
@@ -96,7 +97,7 @@ export default async function ProgramPage({ params, searchParams }: {
               {(others.data ?? []).map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}
             </select>
           </label>
-          <button className="primary" type="submit">{t('save')}</button>
+          <Submit className="primary">{t('save')}</Submit>
         </form>
         <section className="card">
           <h2>{t('courseGuides')}</h2>
@@ -132,7 +133,7 @@ export default async function ProgramPage({ params, searchParams }: {
                 </div>
                 <label>{t('f_teacher_note')}<textarea name="teacher_note" defaultValue={l.teacher_note ?? ''} /></label>
                 <small>{t('formatHint')}</small>
-                <div><button className="primary" type="submit">{t('save')}</button></div>
+                <div><Submit className="primary">{t('save')}</Submit></div>
               </form>
               <div className="stack">
                 <div className="lesson-preview">
@@ -152,7 +153,7 @@ export default async function ProgramPage({ params, searchParams }: {
 
       <form action={addProgramLesson} style={{ marginTop: 16 }}>
         <input type="hidden" name="program_id" value={id} />
-        <button type="submit">+ {t('addProgramLesson')}</button>
+        <Submit>+ {t('addProgramLesson')}</Submit>
       </form>
     </Shell>
   );

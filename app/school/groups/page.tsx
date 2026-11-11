@@ -4,6 +4,7 @@ import { requireProfile, STAFF } from '@/lib/session';
 import { fmtInTz } from '@/lib/i18n';
 import { createGroup, createProgram } from '@/app/groups/actions';
 import { INVITE, pendingTeachers } from '@/lib/invites';
+import Submit from '@/components/Submit';
 
 type Overview = {
   id: string; name: string; teacher_id: string | null; program_id: string | null; tz: string; active: boolean;
@@ -56,7 +57,7 @@ export default async function GroupsPage({ searchParams }: { searchParams: Promi
                 <label>{t('title')}<input name="title" required placeholder="German Activation · Flow 4" /></label>
                 <label>{t('level')}<input name="level" placeholder="A2–B1" /></label>
                 <label>{t('lessonsCountNew')}<input name="lessons" type="number" min={1} max={40} defaultValue={8} /></label>
-                <button className="primary" type="submit">{t('add')}</button>
+                <Submit className="primary">{t('add')}</Submit>
               </form>
             </details>
           )}
@@ -96,7 +97,7 @@ export default async function GroupsPage({ searchParams }: { searchParams: Promi
             ))}
           </fieldset>
           <p className="muted" style={{ margin: 0 }}>{t('createGroupHint')}</p>
-          <div><button className="primary" type="submit">{t('createGroup')}</button></div>
+          <div><Submit className="primary">{t('createGroup')}</Submit></div>
         </form>
       </details>
 

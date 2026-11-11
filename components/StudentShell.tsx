@@ -6,6 +6,7 @@ import LocaleMark from '@/components/LocaleMark';
 import BackButton from '@/components/BackButton';
 import { Suspense } from 'react';
 import { IconBook, IconCalendar, IconChat, IconHome } from '@/components/Icons';
+import Submit from '@/components/Submit';
 
 type Item = { href: string; label: string; icon: React.ReactNode; chat?: boolean };
 
@@ -63,10 +64,10 @@ export default function StudentShell({
           {!preview && (
             <form action={setLocale} className="lang-switch">
               <input type="hidden" name="locale" value={locale === 'en' ? 'uk' : 'en'} />
-              <button type="submit" className="small" aria-label={locale === 'en' ? 'Українська' : 'English'}>
+              <Submit className="small" aria-label={locale === 'en' ? 'Українська' : 'English'}>
                 <span className={locale === 'uk' ? 'on' : ''}>UA</span>
                 <span className={locale === 'en' ? 'on' : ''}>EN</span>
-              </button>
+              </Submit>
             </form>
           )}
           {preview ? (

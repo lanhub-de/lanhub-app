@@ -35,7 +35,7 @@ export default function AudioPanel({ fileId, tracks, page, setPage, labels, opti
             <form action={removeAudio} className="audio-remove-form">
               <input type="hidden" name="id" value={t.id} />
               <input type="hidden" name="file_id" value={fileId} />
-              <button type="submit" className="link-btn audio-remove">{labels.remove}</button>
+              <Submit className="link-btn audio-remove">{labels.remove}</Submit>
             </form>
           )}
         </div>
