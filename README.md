@@ -21,7 +21,10 @@ Who sees what is enforced by row level security in
 
 - A package is valid one month from the first lesson; unused lessons expire.
 - Cancelling at least 24 h before (per teacher) does not count; a later cancellation
-  or a no-show counts as held and is paid.
+  or a no-show uses up a lesson of the student's package.
+- A teacher is paid only for lessons actually held (status "done"). No-shows,
+  cancellations of any kind, force majeure and moved lessons add nothing to pay,
+  and neither does a group lesson every member was marked absent from.
 - Force majeure does not count and extends the package by 7 days.
 - Pay is calculated from rate rules: the most specific rule wins
   (own student or group, then market, then package size, then level band).

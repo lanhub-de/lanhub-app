@@ -229,7 +229,7 @@ test('a person cannot change their own role', async () => {
 
 // --- School rules from the "Правила занять" card -------------------------
 
-test('no-show counts and is paid, an in-time cancellation does not', async () => {
+test('a no-show uses up a package lesson but adds no pay; an in-time cancellation does neither', async () => {
   const [pkg] = await rows(ids.manager,
     `insert into public.packages (student_id, lessons_total) values ($1, 8) returning id`, [ids.lina]);
   ids.linaPkg2 = pkg.id;
@@ -240,9 +240,15 @@ test('no-show counts and is paid, an in-time cancellation does not', async () =>
     `insert into public.lessons (teacher_id, student_id, starts_at, status)
      values ($1, $2, now() - interval '1 day', 'cancelled') returning id`, [ids.nadiia, ids.lina]);
   const pay = await rows(ids.owner, 'select lesson_id, amount from public.lesson_pay where lesson_id in ($1, $2)', [a.id, b.id]);
-  assert.deepEqual(pay.map((p) => [p.lesson_id, Number(p.amount)]), [[a.id, 420]]);
+  assert.deepEqual(pay, []);
   const [u] = await rows(ids.owner, 'select lessons_used from public.package_usage where package_id = $1', [ids.linaPkg2]);
   assert.equal(u.lessons_used, 1);
+  // the same lesson held after all is paid
+  await rows(ids.nadiia, `update public.lessons set status = 'done' where id = $1`, [a.id]);
+  const paid = await rows(ids.owner, 'select amount from public.lesson_pay where lesson_id = $1', [a.id]);
+  assert.deepEqual(paid.map((p) => Number(p.amount)), [420]);
+  await rows(ids.nadiia, `update public.lessons set status = 'no_show' where id = $1`, [a.id]);
+  assert.equal((await rows(ids.owner, 'select 1 from public.lesson_pay where lesson_id = $1', [a.id])).length, 0);
 });
 
 test('a late cancellation only counts inside the 24 h window', async () => {
@@ -250,11 +256,12 @@ test('a late cancellation only counts inside the 24 h window', async () => {
     `insert into public.lessons (teacher_id, student_id, starts_at, status)
      values ($1, $2, now() + interval '3 days', 'late_cancel')`, [ids.nadiia, ids.lina]);
   assert.match(far, /Cancelled in time/);
-  await rows(ids.nadiia,
+  const [late] = await rows(ids.nadiia,
     `insert into public.lessons (teacher_id, student_id, starts_at, status)
-     values ($1, $2, now() + interval '5 hours', 'late_cancel')`, [ids.nadiia, ids.lina]);
+     values ($1, $2, now() + interval '5 hours', 'late_cancel') returning id`, [ids.nadiia, ids.lina]);
   const [u] = await rows(ids.owner, 'select lessons_used from public.package_usage where package_id = $1', [ids.linaPkg2]);
   assert.equal(u.lessons_used, 2);
+  assert.equal((await rows(ids.owner, 'select 1 from public.lesson_pay where lesson_id = $1', [late.id])).length, 0);
 });
 
 test('force majeure extends the package by a week', async () => {
@@ -639,6 +646,13 @@ test('group pay follows how many came: Agata 600 / 750 / 900 / 1050 / 1200', asy
   await rows(ids.agata,
     'insert into public.lesson_absences (lesson_id, student_id) select $1, unnest($2::uuid[])',
     [l1.id, studs.slice(0, 5).map((s) => s.id)]);
+  assert.equal(await pay(), 600);
+  // nobody came: the lesson was not held, so no pay
+  await rows(ids.agata,
+    'insert into public.lesson_absences (lesson_id, student_id) select $1, unnest($2::uuid[])',
+    [l1.id, studs.slice(5).map((s) => s.id)]);
+  assert.equal((await rows(ids.agata, 'select 1 from public.lesson_pay where lesson_id = $1', [l1.id])).length, 0);
+  await rows(ids.agata, 'delete from public.lesson_absences where lesson_id = $1 and student_id = $2', [l1.id, studs[6].id]);
   assert.equal(await pay(), 600);
 });
 

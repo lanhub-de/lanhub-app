@@ -20,7 +20,8 @@ const OTHER = ['no_show', 'late_cancel', 'cancelled', 'force_majeure', 'reschedu
 export default function LessonRow({
   lesson, t, locale, returnTo, canMark,
 }: { lesson: LessonView; t: T; locale: Locale; returnTo: string; canMark: boolean }) {
-  const counted = ['done', 'no_show', 'late_cancel'].includes(lesson.status);
+  // green only for a lesson actually held: the only one a teacher is paid for
+  const counted = lesson.status === 'done';
   return (
     <div className="card spread">
       <div>
