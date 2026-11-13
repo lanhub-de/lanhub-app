@@ -21,9 +21,11 @@ export default async function LibraryPage({ searchParams }: { searchParams: Prom
       .order('title').returns<LibFile[]>(),
     supabase.from('library_links').select('id, title, url, folder_id, level, staff_only').order('title').returns<LibLink[]>(),
   ]);
-  const links = linkRows ?? [];
+  const links = (linkRows ?? []).sort((a, b) => a.title.localeCompare(b.title, 'uk', { numeric: true }));
   const folders = folderRows ?? [];
-  const all = fileRows ?? [];
+  // "Lektion 2" before "Lektion 10"
+  const byTitle = (a: { title: string }, b: { title: string }) => a.title.localeCompare(b.title, 'uk', { numeric: true });
+  const all = (fileRows ?? []).sort(byTitle);
   const library = all.filter((f) => f.visibility === 'library');
   const mine = all.filter((f) => f.visibility === 'private' && f.uploaded_by === profile.id);
   const current = folders.some((f) => f.id === sp.f) ? sp.f! : null;
