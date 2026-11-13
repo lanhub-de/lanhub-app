@@ -31,11 +31,12 @@ export async function renameFolder(formData: FormData) {
 export async function deleteFolder(formData: FormData) {
   const id = str(formData, 'id');
   const supabase = await supabaseServer();
-  const [{ count: sub }, { count: files }] = await Promise.all([
+  const [{ count: sub }, { count: files }, { count: links }] = await Promise.all([
     supabase.from('library_folders').select('id', { count: 'exact', head: true }).eq('parent_id', id),
     supabase.from('files').select('id', { count: 'exact', head: true }).eq('folder_id', id),
+    supabase.from('library_links').select('id', { count: 'exact', head: true }).eq('folder_id', id),
   ]);
-  if ((sub ?? 0) + (files ?? 0) > 0) return back(here(formData), 'The folder is not empty');
+  if ((sub ?? 0) + (files ?? 0) + (links ?? 0) > 0) return back(here(formData), 'The folder is not empty');
   const { data: folder } = await supabase.from('library_folders').select('parent_id').eq('id', id).maybeSingle();
   const { error } = await supabase.from('library_folders').delete().eq('id', id);
   if (error) return back(here(formData), error.message);
@@ -89,4 +90,39 @@ export async function removeAudio(formData: FormData) {
   const { error } = await supabase.from('file_audio').delete().eq('id', str(formData, 'id'));
   revalidatePath(`/library/${fileId}`);
   if (error) redirect(`/library/${fileId}?e=${encodeURIComponent(error.message)}`);
+}
+
+// Links (Quizlet sets, Canva, Miro …) next to the files.
+function cleanUrl(raw: string) {
+  const u = raw.trim();
+  return /^https?:\/\//i.test(u) ? u : '';
+}
+
+export async function addLink(formData: FormData) {
+  const title = str(formData, 'title');
+  const url = cleanUrl(str(formData, 'url'));
+  if (!title || !url) return back(here(formData), 'Give the link a title and an address starting with https://');
+  const supabase = await supabaseServer();
+  const { error } = await supabase.from('library_links').insert({
+    title, url, folder_id: str(formData, 'folder_id') || null, level: str(formData, 'level') || null,
+  });
+  back(here(formData), error ? (error.code === '23505' ? 'This link is already in this folder' : error.message) : null);
+}
+
+export async function updateLink(formData: FormData) {
+  const title = str(formData, 'title');
+  const url = cleanUrl(str(formData, 'url'));
+  if (!title || !url) return back(here(formData), 'Give the link a title and an address starting with https://');
+  const supabase = await supabaseServer();
+  const { error } = await supabase.from('library_links').update({
+    title, url, folder_id: str(formData, 'folder_id') || null, level: str(formData, 'level') || null,
+    staff_only: formData.get('staff_only') === 'on',
+  }).eq('id', str(formData, 'id'));
+  back(here(formData), error?.message);
+}
+
+export async function deleteLink(formData: FormData) {
+  const supabase = await supabaseServer();
+  const { error } = await supabase.from('library_links').delete().eq('id', str(formData, 'id'));
+  back(here(formData), error?.message);
 }

@@ -1143,3 +1143,18 @@ test('a teacher deletes her own wrong booking only before it starts and within a
   await rows(ids.manager, 'delete from public.lessons where id = $1', [other]);
   assert.equal(await exists(other), false);
 });
+
+test('library links: the team sees them, the owner and head teacher add them', async () => {
+  const [f] = await rows(ids.owner, `insert into public.library_folders (name) values ('Quizlet') returning id`);
+  const [l] = await rows(ids.owner,
+    `insert into public.library_links (title, url, folder_id, level) values ('A1 · Lektion 1', 'https://quizlet.com/123/a1-l1', $1, 'A1') returning id`,
+    [f.id]);
+  assert.equal((await rows(ids.nadiia, 'select title from public.library_links where id = $1', [l.id])).length, 1);
+  assert.ok(await fails(ids.nadiia, `insert into public.library_links (title, url) values ('x', 'https://quizlet.com/1')`));
+  assert.ok(await fails(ids.owner, `insert into public.library_links (title, url) values ('bad', 'javascript:alert(1)')`));
+  await rows(ids.nadiia, `update public.library_links set title = 'hacked' where id = $1`, [l.id]);
+  const [{ title }] = await rows(ids.owner, 'select title from public.library_links where id = $1', [l.id]);
+  assert.equal(title, 'A1 · Lektion 1');
+  // a folder with a link in it is not empty
+  assert.ok(await fails(ids.owner, 'delete from public.library_folders where id = $1', [f.id]));
+});

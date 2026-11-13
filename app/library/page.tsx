@@ -5,7 +5,9 @@ import FolderUpload from '@/components/FolderUpload';
 import Submit from '@/components/Submit';
 import { requireProfile, TEACHING } from '@/lib/session';
 import { folderPath, pathLabel, fmtSize, isAudio, type Folder, type LibFile } from '@/lib/library';
-import { createFolder, deleteFile, deleteFolder, renameFolder, updateFile } from './actions';
+import { addLink, createFolder, deleteFile, deleteFolder, deleteLink, renameFolder, updateFile, updateLink } from './actions';
+
+type LibLink = { id: string; title: string; url: string; folder_id: string | null; level: string | null; staff_only: boolean };
 
 type SP = { f?: string; q?: string; e?: string };
 
@@ -13,11 +15,13 @@ export default async function LibraryPage({ searchParams }: { searchParams: Prom
   const { supabase, profile, t } = await requireProfile(TEACHING);
   const sp = await searchParams;
   const canEdit = profile.role === 'owner' || profile.role === 'head_teacher';
-  const [{ data: folderRows }, { data: fileRows }] = await Promise.all([
+  const [{ data: folderRows }, { data: fileRows }, { data: linkRows }] = await Promise.all([
     supabase.from('library_folders').select('id, name, parent_id').order('created_at').returns<Folder[]>(),
     supabase.from('files').select('id, title, folder_id, level, staff_only, size_bytes, mime, visibility, uploaded_by')
       .order('title').returns<LibFile[]>(),
+    supabase.from('library_links').select('id, title, url, folder_id, level, staff_only').order('title').returns<LibLink[]>(),
   ]);
+  const links = linkRows ?? [];
   const folders = folderRows ?? [];
   const all = fileRows ?? [];
   const library = all.filter((f) => f.visibility === 'library');
@@ -29,6 +33,7 @@ export default async function LibraryPage({ searchParams }: { searchParams: Prom
 
   // files below a folder, subfolders included
   const below = (id: string): number => library.filter((f) => f.folder_id === id).length
+    + links.filter((l) => l.folder_id === id).length
     + folders.filter((f) => f.parent_id === id).reduce((n, f) => n + below(f.id), 0);
   // top level in the order made (LanHub, Іспити, Групи); inside, by name (A1, A2, B1, B1+)
   const subfolders = folders.filter((f) => f.parent_id === current);
@@ -36,8 +41,13 @@ export default async function LibraryPage({ searchParams }: { searchParams: Prom
   const shown = q
     ? library.filter((f) => f.title.toLowerCase().includes(q) || pathLabel(folders, f.folder_id).toLowerCase().includes(q))
     : library.filter((f) => f.folder_id === current);
+  const shownLinks = q
+    ? links.filter((l) => l.title.toLowerCase().includes(q) || pathLabel(folders, l.folder_id).toLowerCase().includes(q))
+    : links.filter((l) => l.folder_id === current);
   const open = shown.filter((f) => !f.staff_only);
   const team = shown.filter((f) => f.staff_only);
+  const openLinks = shownLinks.filter((l) => !l.staff_only);
+  const teamLinks = shownLinks.filter((l) => l.staff_only);
   const folderOptions = folders.map((f) => ({ id: f.id, label: pathLabel(folders, f.id) }))
     .sort((a, b) => a.label.localeCompare(b.label, 'uk', { numeric: true }));
 
@@ -85,6 +95,48 @@ export default async function LibraryPage({ searchParams }: { searchParams: Prom
     </div>
   );
 
+  // a link opens in a new tab (Quizlet, Canva …); the team edits it like a file
+  const linkRow = (l: LibLink) => (
+    <div key={l.id} className="lib-row">
+      <a href={l.url} target="_blank" rel="noreferrer" className="lib-title">
+        <span className="lib-icon" aria-hidden>🔗</span>
+        <span>
+          {l.title}
+          {q && l.folder_id && <span className="muted lib-where">{pathLabel(folders, l.folder_id)}</span>}
+        </span>
+      </a>
+      <span className="lib-meta">
+        {l.level && (q || !crumbs.some((c) => c.name.toUpperCase() === l.level)) && <span className="pill">{l.level}</span>}
+        <span className="muted">{hostOf(l.url)}</span>
+        {canEdit && (
+          <details className="lib-edit">
+            <summary className="link-btn">{t('libEdit')}</summary>
+            <form action={updateLink} className="stack">
+              <input type="hidden" name="id" value={l.id} />
+              <input type="hidden" name="return_to" value={here} />
+              <label>{t('title')}<input name="title" defaultValue={l.title} required /></label>
+              <label>{t('libLinkUrl')}<input name="url" type="url" defaultValue={l.url} required /></label>
+              <label>{t('libFolder')}
+                <select name="folder_id" defaultValue={l.folder_id ?? ''}>
+                  <option value="">{t('libNoFolder')}</option>
+                  {folderOptions.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+                </select>
+              </label>
+              <label>{t('level')}<input name="level" defaultValue={l.level ?? ''} placeholder="A1, B1+…" /></label>
+              <label className="check"><input type="checkbox" name="staff_only" defaultChecked={l.staff_only} /> {t('libTeamOnly')}</label>
+              <Submit className="primary small">{t('save')}</Submit>
+            </form>
+            <form action={deleteLink} style={{ marginTop: 8 }}>
+              <input type="hidden" name="id" value={l.id} />
+              <input type="hidden" name="return_to" value={here} />
+              <Submit className="small danger">{t('libDeleteConfirm')}</Submit>
+            </form>
+          </details>
+        )}
+      </span>
+    </div>
+  );
+
   return (
     <Shell profile={profile} t={t} active="/library">
       <div className="spread lib-head">
@@ -123,19 +175,21 @@ export default async function LibraryPage({ searchParams }: { searchParams: Prom
             </div>
           )}
 
-          {(open.length > 0 || (!team.length && !subfolders.length)) && (
+          {(open.length > 0 || openLinks.length > 0 || (!team.length && !teamLinks.length && !subfolders.length)) && (
             <div className="card">
-              {(team.length > 0 || q) && <h2>{t('libMaterials')}</h2>}
-              {open.length === 0 && <p className="muted">{t('nothingHere')}</p>}
+              {(team.length > 0 || teamLinks.length > 0 || q) && <h2>{t('libMaterials')}</h2>}
+              {open.length === 0 && openLinks.length === 0 && <p className="muted">{t('nothingHere')}</p>}
               {open.map(fileRow)}
+              {openLinks.map(linkRow)}
             </div>
           )}
 
-          {team.length > 0 && (
+          {(team.length > 0 || teamLinks.length > 0) && (
             <div className="card lib-team">
               <h2>🔒 {t('libTeamOnly')}</h2>
               <p className="muted" style={{ fontSize: 13 }}>{t('libTeamOnlyHint')}</p>
               {team.map(fileRow)}
+              {teamLinks.map(linkRow)}
             </div>
           )}
 
@@ -164,6 +218,18 @@ export default async function LibraryPage({ searchParams }: { searchParams: Prom
                     failed: t('upFailed'), teamOnly: t('libTeamOnly'), root: t('library'),
                   }}
                 />
+              </div>
+              <div className="card">
+                <h2>{t('libLinkTitle')}</h2>
+                <p className="muted" style={{ fontSize: 13, marginTop: 0 }}>{t('libLinkHint')}</p>
+                <form action={addLink} className="stack" style={{ gap: 8 }}>
+                  <input type="hidden" name="folder_id" value={current ?? ''} />
+                  <input type="hidden" name="return_to" value={here} />
+                  <input name="title" required placeholder={t('title')} aria-label={t('title')} />
+                  <input name="url" type="url" required placeholder="https://quizlet.com/…" aria-label={t('libLinkUrl')} />
+                  <input name="level" placeholder={`${t('level')}: A1, B1+…`} aria-label={t('level')} />
+                  <Submit className="small">{t('libLinkAdd')}</Submit>
+                </form>
               </div>
               <div className="card">
                 <h2>{t('libNewFolder')}</h2>
@@ -207,4 +273,8 @@ export default async function LibraryPage({ searchParams }: { searchParams: Prom
       </div>
     </Shell>
   );
+}
+
+function hostOf(url: string) {
+  try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return ''; }
 }
