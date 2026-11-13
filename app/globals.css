@@ -569,3 +569,27 @@ button.danger { color: var(--red); border-color: var(--red); background: var(--c
 .audio-dl { font-size: 13px; font-weight: 600; color: var(--red); text-decoration: none; }
 .audio-dl:hover { text-decoration: underline; }
 .audio-remove-form { margin-top: -2px; }
+
+/* booking: once or regular weekdays, with the dates listed before saving */
+.seg { display: inline-flex; padding: 3px; border-radius: 999px; background: var(--sand, #f3efea); gap: 3px; align-self: flex-start; }
+.seg button { border: 0; background: transparent; border-radius: 999px; padding: 6px 14px; min-height: 34px; font-weight: 600; font-size: 14px; color: inherit; cursor: pointer; }
+.seg button.on { background: var(--red); color: #fff; }
+.book-days { display: flex; flex-direction: column; gap: 8px; }
+.book-label { font-size: 13px; }
+.day-chips { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.day-chips button { padding: 6px 0; min-height: 36px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); font-size: 13px; font-weight: 600; color: inherit; cursor: pointer; text-transform: capitalize; }
+.day-chips button.on { background: var(--red); border-color: var(--red); color: #fff; }
+.day-time { display: grid !important; grid-template-columns: 48px 1fr; align-items: center; gap: 8px; }
+.day-time span { font-weight: 600; text-transform: capitalize; }
+.book-preview { font-size: 13px; }
+.book-preview ul { margin: 4px 0 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px 12px; max-height: 140px; overflow: auto; }
+.book-preview li { white-space: nowrap; }
+.book-warn { color: var(--red-deep, #800000); font-weight: 600; }
+
+/* a lesson moved to another day: shown to the school and the teacher */
+.moved-note { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); margin-top: 2px; }
+.moved-note .pill { font-size: 12px; }
+.delete-booking { border-top: 1px solid var(--line); padding-top: 8px; }
+.delete-booking > summary { list-style: none; font-size: 13px; }
+.delete-booking > summary::-webkit-details-marker { display: none; }
+.delete-booking form { margin-top: 8px; }

@@ -1078,3 +1078,68 @@ test('homework files older than a year are listed for removal only with the secr
   assert.ok(h.files_removed_at);
   assert.equal((await db.query('select * from public.homework_files_due($1)', [secret])).rows.length, 0);
 });
+
+// ---------------------------------------------------------------------------
+// Fixing and moving booked lessons
+// ---------------------------------------------------------------------------
+const KYIV_10AM_IN_3_DAYS = `((date_trunc('day', now() at time zone 'Europe/Kyiv') + interval '3 days 10 hours') at time zone 'Europe/Kyiv')`;
+
+test('every move is kept; another day and late moves are marked; marked lessons stay put', async () => {
+  const [l] = await rows(ids.nadiia,
+    `insert into public.lessons (teacher_id, student_id, starts_at) values ($1, $2, ${KYIV_10AM_IN_3_DAYS}) returning id`,
+    [ids.nadiia, ids.lina]);
+  await rows(ids.nadiia, `update public.lessons set starts_at = starts_at + interval '2 hours' where id = $1`, [l.id]);
+  await rows(ids.nadiia, `update public.lessons set starts_at = starts_at + interval '1 day' where id = $1`, [l.id]);
+  const moves = await rows(ids.owner,
+    'select day_changed, late, moved_by from public.lesson_moves where lesson_id = $1 order by moved_at, to_at', [l.id]);
+  assert.deepEqual(moves.map((m) => [m.day_changed, m.late, m.moved_by]), [[false, false, ids.nadiia], [true, false, ids.nadiia]]);
+  // only her and the school see the history
+  assert.equal((await rows(ids.nadiia, 'select 1 from public.lesson_moves where lesson_id = $1', [l.id])).length, 2);
+  assert.equal((await rows(ids.toma, 'select 1 from public.lesson_moves where lesson_id = $1', [l.id])).length, 0);
+  assert.ok(await fails(ids.nadiia, 'insert into public.lesson_moves (lesson_id, from_at, to_at, day_changed, late) values ($1, now(), now(), false, false)', [l.id]));
+
+  // inside the 24 h window the move is late
+  const [soon] = await rows(ids.nadiia,
+    `insert into public.lessons (teacher_id, student_id, starts_at) values ($1, $2, now() + interval '5 hours') returning id`,
+    [ids.nadiia, ids.lina]);
+  await rows(ids.nadiia, `update public.lessons set starts_at = starts_at + interval '2 days' where id = $1`, [soon.id]);
+  const [m] = await rows(ids.owner, 'select late, day_changed from public.lesson_moves where lesson_id = $1', [soon.id]);
+  assert.equal(m.late, true);
+
+  // a marked lesson is not moved by the teacher, the school still can
+  const [held] = await rows(ids.nadiia,
+    `insert into public.lessons (teacher_id, student_id, starts_at, status) values ($1, $2, now() - interval '3 hours', 'done') returning id`,
+    [ids.nadiia, ids.lina]);
+  assert.match(await fails(ids.nadiia, `update public.lessons set starts_at = starts_at - interval '1 day' where id = $1`, [held.id]),
+    /not marked yet/);
+  await rows(ids.manager, `update public.lessons set starts_at = starts_at - interval '1 hour' where id = $1`, [held.id]);
+});
+
+test('a teacher deletes her own wrong booking only before it starts and within a day of booking', async () => {
+  const exists = async (id) => (await rows(ids.owner, 'select 1 from public.lessons where id = $1', [id])).length === 1;
+  const book = async (uid, when) => (await rows(uid,
+    `insert into public.lessons (teacher_id, student_id, starts_at) values ($1, $2, ${when}) returning id`, [ids.nadiia, ids.lina]))[0].id;
+
+  const mine = await book(ids.nadiia, "now() + interval '2 days'");
+  await rows(ids.nadiia, 'delete from public.lessons where id = $1', [mine]);
+  assert.equal(await exists(mine), false);
+
+  const bySchool = await book(ids.manager, "now() + interval '2 days'");
+  await rows(ids.nadiia, 'delete from public.lessons where id = $1', [bySchool]);
+  assert.equal(await exists(bySchool), true);
+
+  const old = await book(ids.nadiia, "now() + interval '2 days'");
+  await db.query(`update public.lessons set created_at = now() - interval '25 hours' where id = $1`, [old]);
+  await rows(ids.nadiia, 'delete from public.lessons where id = $1', [old]);
+  assert.equal(await exists(old), true);
+
+  const started = await book(ids.nadiia, "now() - interval '1 hour'");
+  await rows(ids.nadiia, 'delete from public.lessons where id = $1', [started]);
+  assert.equal(await exists(started), true);
+
+  const other = await book(ids.nadiia, "now() + interval '3 days'");
+  await rows(ids.toma, 'delete from public.lessons where id = $1', [other]);
+  assert.equal(await exists(other), true);
+  await rows(ids.manager, 'delete from public.lessons where id = $1', [other]);
+  assert.equal(await exists(other), false);
+});

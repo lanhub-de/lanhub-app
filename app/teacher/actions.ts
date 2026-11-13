@@ -25,39 +25,82 @@ export async function setLessonStatus(formData: FormData) {
   back(returnTo, error?.message);
 }
 
-// A lesson moved to another time (Kyiv time in the form).
+// A lesson moved to another time (Kyiv time in the form). The database keeps
+// the move in the lesson's history (the school sees moves to another day);
+// the student gets a note in her chat with the teacher.
 export async function moveLesson(formData: FormData) {
   const id = String(formData.get('id'));
   const returnTo = String(formData.get('return_to') || '/teacher');
   const local = String(formData.get('starts_at') || '');
   if (!local) return back(returnTo, 'Choose the new time');
+  const to = kyivLocalToIso(local);
+  if (Number.isNaN(new Date(to).getTime())) return back(returnTo, 'Check the date and time');
   const supabase = await supabaseServer();
-  const { error } = await supabase.from('lessons').update({ starts_at: kyivLocalToIso(local) }).eq('id', id);
-  back(returnTo, error?.message);
+  const { data: before } = await supabase.from('lessons').select('starts_at, student_id, teacher_id, pending_teacher')
+    .eq('id', id).maybeSingle();
+  if (!before) return back(returnTo, 'Lesson not found');
+  if (new Date(before.starts_at).getTime() === new Date(to).getTime()) return back(returnTo);
+  const { error } = await supabase.from('lessons').update({ starts_at: to }).eq('id', id);
+  if (error) return back(returnTo, error.message);
+  if (before.student_id && !before.pending_teacher) {
+    await tellStudent(supabase, before.student_id, before.teacher_id,
+      `🔁 Заняття перенесено / Lesson moved: ${fmtKyiv(before.starts_at)} → ${fmtKyiv(to)}`);
+  }
+  back(returnTo);
 }
 
-// "Schedule a lesson": one lesson, or the same time every week for a few
-// weeks. For an invited teacher who has not signed in yet the school books it
-// as hers (pending), and it moves to her on first sign-in. The student hears
-// about it in her chat with the teacher.
+// A lesson booked by mistake: the teacher may delete her own booking before it
+// starts and within a day of booking it (the database checks this).
+export async function deleteLesson(formData: FormData) {
+  const id = String(formData.get('id'));
+  const returnTo = String(formData.get('return_to') || '/teacher');
+  const supabase = await supabaseServer();
+  const { data: l } = await supabase.from('lessons').select('starts_at, student_id, teacher_id, pending_teacher')
+    .eq('id', id).maybeSingle();
+  if (!l) return back(returnTo, 'Lesson not found');
+  const { data: gone, error } = await supabase.from('lessons').delete().eq('id', id).select('id');
+  if (error) return back(returnTo, error.message);
+  if (!gone?.length) return back(returnTo, 'This booking can no longer be deleted here: please ask the school');
+  if (l.student_id && !l.pending_teacher) {
+    await tellStudent(supabase, l.student_id, l.teacher_id, `❌ Заняття скасовано / Lesson cancelled: ${fmtKyiv(l.starts_at)}`);
+  }
+  back(returnTo);
+}
+
+async function tellStudent(supabase: Awaited<ReturnType<typeof supabaseServer>>, studentId: string, teacherId: string, body: string) {
+  try {
+    const { data: cid } = await supabase.rpc('start_chat', { p_kind: 'direct', p_group: null, p_student: studentId, p_teacher: teacherId });
+    if (cid) await sendMessage({ conversationId: cid as string, body });
+  } catch { /* the change is saved either way */ }
+}
+
+// "Schedule a lesson": one lesson, or several (regular weekdays, as listed in
+// the form). For an invited teacher who has not signed in yet the school books
+// it as hers (pending), and it moves to her on first sign-in. The student
+// hears about it in her chat with the teacher.
 export async function addLesson(formData: FormData) {
   const supabase = await supabaseServer();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect('/login');
   const returnTo = String(formData.get('return_to') || '/teacher');
   const who = String(formData.get('who') || '');
+  // the form lists every lesson as a Kyiv time; older forms send one time and a weekly repeat
   const startsLocal = String(formData.get('starts_at') || '');
-  if (!who || !startsLocal) return back(returnTo, 'Fill in who and when');
+  const repeat = Math.min(Math.max(Number(formData.get('repeat') || 1), 1), 12);
+  const listed = formData.getAll('slot').map(String).filter(Boolean);
+  const slots = [...new Set(listed.length ? listed : startsLocal ? Array.from({ length: repeat }, (_, i) => shiftLocal(startsLocal, i * 7)) : [])].sort();
+  if (!who) return back(returnTo, 'Choose who the lesson is with');
+  if (!slots.length) return back(returnTo, 'Choose the date and time');
+  if (slots.length > 24) return back(returnTo, 'At most 24 lessons at once');
+  if (slots.some((x) => Number.isNaN(new Date(kyivLocalToIso(x)).getTime()))) return back(returnTo, 'Check the date and time');
   const [type, id] = who.split(':');
   const pending = String(formData.get('pending') || '') || null;
   const teacherId = pending ? user.id : String(formData.get('teacher_id') || user.id);
-  const repeat = Math.min(Math.max(Number(formData.get('repeat') || 1), 1), 12);
-  if (Number.isNaN(new Date(kyivLocalToIso(startsLocal)).getTime())) return back(returnTo, 'Check the date and time');
   const kind = String(formData.get('kind') || '');
-  const rows = Array.from({ length: repeat }, (_, i) => {
+  const rows = slots.map((local) => {
     const row: Record<string, unknown> = {
       teacher_id: teacherId,
-      starts_at: kyivLocalToIso(shiftLocal(startsLocal, i * 7)),
+      starts_at: kyivLocalToIso(local),
       duration_min: Number(formData.get('duration_min') || 60),
       zoom_url: String(formData.get('zoom_url') || '') || null,
     };

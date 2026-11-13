@@ -12,6 +12,7 @@ export type LessonView = {
   teacher_name?: string;
   who: string;
   level?: string | null;
+  moved?: { from: string; late: boolean } | null;
 };
 
 const OTHER = ['no_show', 'late_cancel', 'cancelled', 'force_majeure', 'rescheduled'];
@@ -34,6 +35,12 @@ export default function LessonRow({
           {lesson.teacher_name ? ` · ${lesson.teacher_name}` : ''}
           {lesson.zoom_url ? <> · <a href={lesson.zoom_url} target="_blank" rel="noreferrer">Zoom</a></> : null}
         </div>
+        {lesson.moved && (
+          <div className="moved-note">
+            ↪ {t('movedFrom', { when: fmtDateTime(lesson.moved.from, locale) })}
+            {lesson.moved.late && <span className="pill warn">{t('movedLate')}</span>}
+          </div>
+        )}
       </div>
       <div className="row">
         {lesson.status !== 'scheduled' && (

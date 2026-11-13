@@ -1,9 +1,10 @@
 import Link from 'next/link';
 import type { Locale, T } from '@/lib/i18n';
 import { SCHOOL_TZ } from '@/lib/i18n';
-import { zoomOf, type LessonDb } from '@/lib/lessons';
+import { canDeleteBooking, lastDayMove, zoomOf, type LessonDb } from '@/lib/lessons';
 import { fmtMoney } from '@/lib/i18n';
-import { attachLessonFile, detachLessonFile, moveLesson, saveLessonPlan, setLessonStatus } from '@/app/teacher/actions';
+import { attachLessonFile, deleteLesson, detachLessonFile, moveLesson, saveLessonPlan, setLessonStatus } from '@/app/teacher/actions';
+import { fmtDateTime } from '@/lib/i18n';
 import LessonFileUpload from '@/components/LessonFileUpload';
 import Submit from '@/components/Submit';
 
@@ -37,6 +38,7 @@ export default function TodayLessonCard({
   const paid = lesson.lesson_pay?.amount != null && Number(lesson.lesson_pay.amount) > 0 ? Number(lesson.lesson_pay.amount) : null;
   const held = ['done', 'no_show', 'late_cancel'].includes(lesson.status);
   const who = lesson.students?.full_name ?? lesson.groups?.name ?? '';
+  const moved = lastDayMove(lesson);
   const level = lesson.students?.level ?? lesson.groups?.level;
   const status = (s: string, label: string, cls = '') => (
     <form action={setLessonStatus}>
@@ -56,6 +58,12 @@ export default function TodayLessonCard({
         <div className="today-who">
           <strong>{who}{level ? ` · ${level}` : ''}</strong>
           <span className="muted">{t(`kind_${lesson.kind}` as never)}</span>
+          {moved && (
+            <span className="moved-note">
+              ↪ {t('movedFrom', { when: fmtDateTime(moved.from, locale) })}
+              {moved.late && <span className="pill warn">{t('movedLate')}</span>}
+            </span>
+          )}
         </div>
         <div className="today-actions">
           {lesson.status === 'scheduled' ? (
@@ -63,12 +71,27 @@ export default function TodayLessonCard({
               {status('no_show', t('btnNoShow'))}
               <details className="move">
                 <summary className="btn">{t('btnMove')}</summary>
-                <form action={moveLesson} className="move-form">
-                  <input type="hidden" name="id" value={lesson.id} />
-                  <input type="hidden" name="return_to" value={returnTo} />
-                  <label>{t('newTime')}<input type="datetime-local" name="starts_at" required defaultValue={localValue(lesson.starts_at)} /></label>
-                  <Submit className="primary small">{t('save')}</Submit>
-                </form>
+                <div className="move-form">
+                  <form action={moveLesson} className="stack" style={{ gap: 8 }}>
+                    <strong style={{ fontSize: 15 }}>{t('moveTitle')}</strong>
+                    <input type="hidden" name="id" value={lesson.id} />
+                    <input type="hidden" name="return_to" value={returnTo} />
+                    <label>{t('newTime')}<input type="datetime-local" name="starts_at" required defaultValue={localValue(lesson.starts_at)} /></label>
+                    <Submit className="primary small">{t('save')}</Submit>
+                    <small className="muted">{t('moveHint')}</small>
+                  </form>
+                  {canDeleteBooking(lesson, userId) && (
+                    <details className="delete-booking">
+                      <summary className="link-btn">{t('deleteBooking')}</summary>
+                      <form action={deleteLesson} className="stack" style={{ gap: 6 }}>
+                        <input type="hidden" name="id" value={lesson.id} />
+                        <input type="hidden" name="return_to" value={returnTo} />
+                        <small className="muted">{t('deleteBookingHint')}</small>
+                        <Submit className="small danger">{t('deleteConfirm')}</Submit>
+                      </form>
+                    </details>
+                  )}
+                </div>
               </details>
               {status('done', t('markDone'), 'primary')}
             </>

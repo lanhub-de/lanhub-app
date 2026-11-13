@@ -143,8 +143,8 @@ export default async function TeacherPage({ searchParams }: { searchParams: Prom
               <h1 style={{ margin: 0 }}>{who.viewing ? t('cabinetTitle', { name: who.name }) : t('todayHeading')}</h1>
               <span className="muted" style={{ fontSize: 13 }}>{t('todayHint')}</span>
             </div>
-            <ScheduleLesson t={t} returnTo={here}
-              students={myStudents.map((s) => ({ id: s.id, name: s.full_name, level: s.level }))}
+            <ScheduleLesson t={t} locale={profile.locale} returnTo={here}
+              students={myStudents.map((s) => ({ id: s.id, name: s.full_name, level: s.level, left: pkgByStudent.get(s.id)?.lessons_left ?? null }))}
               groups={(groups.data ?? []).map((g) => ({ id: g.id, name: g.name }))}
               teacherId={who.viewing && !who.pending ? who.id : undefined}
               pending={who.pending}
