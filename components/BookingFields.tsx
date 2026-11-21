@@ -3,11 +3,13 @@ import { useMemo, useState } from 'react';
 
 export type BookingLabels = {
   whoWith: string; once: string; regular: string; when: string; days: string; from: string; count: string;
-  preview: string; left: string; over: string; pickDay: string;
+  preview: string; left: string; over: string; pickDay: string; duration: string; min: string;
 };
 export type BookingWho = { id: string; name: string; level?: string | null; left?: number | null };
 
 const MAX = 24;
+const LENGTHS = [45, 60, 90, 120];
+type Day = { time: string; min: number };
 // Monday first; the weekday number as in Date.getUTCDay()
 const WEEK = [1, 2, 3, 4, 5, 6, 0];
 
@@ -15,17 +17,18 @@ function todayKyiv() {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Kyiv', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 }
 
-// The lessons to book, as Kyiv wall-clock times ("2026-11-18T18:00"): the
-// chosen weekdays from the start date on, each at its own time, until there
-// are as many as asked.
-export function slotsFor(days: Record<number, string>, from: string, count: number) {
+// The lessons to book, as Kyiv wall-clock times with their length
+// ("2026-11-18T18:00|90"): the chosen weekdays from the start date on, each at
+// its own time and length (Tue 60 min, Thu 90 min), until there are as many as asked.
+export function slotsFor(days: Record<number, Day>, from: string, count: number) {
   const chosen = Object.keys(days).map(Number);
   if (!chosen.length || !from || count < 1) return [];
   const out: string[] = [];
   const d = new Date(`${from}T12:00:00Z`);
   for (let i = 0; i < 400 && out.length < count; i++) {
     const wd = d.getUTCDay();
-    if (chosen.includes(wd) && days[wd]) out.push(`${d.toISOString().slice(0, 10)}T${days[wd]}`);
+    const day = days[wd];
+    if (chosen.includes(wd) && day?.time) out.push(`${d.toISOString().slice(0, 10)}T${day.time}|${day.min}`);
     d.setUTCDate(d.getUTCDate() + 1);
   }
   return out;
@@ -40,7 +43,7 @@ export default function BookingFields({ students, groups = [], preselect, labels
 }) {
   const [who, setWho] = useState(preselect ?? '');
   const [mode, setMode] = useState<'once' | 'regular'>('once');
-  const [days, setDays] = useState<Record<number, string>>({});
+  const [days, setDays] = useState<Record<number, Day>>({});
   const [from, setFrom] = useState(todayKyiv);
   const left = who.startsWith('s:') ? students.find((s) => `s:${s.id}` === who)?.left ?? null : null;
   const [count, setCount] = useState<number>(left && left > 0 ? left : 4);
@@ -51,16 +54,17 @@ export default function BookingFields({ students, groups = [], preselect, labels
     .format(new Date(Date.UTC(2026, 10, 15 + (wd === 0 ? 7 : wd)))); // 16 Nov 2026 is a Monday
   const slots = useMemo(() => slotsFor(days, from, Math.min(MAX, Math.max(1, count || 1))), [days, from, count]);
   const fmt = (s: string) => {
-    const [d, time] = s.split('T');
+    const [when, min] = s.split('|');
+    const [d, time] = when.split('T');
     const date = new Intl.DateTimeFormat(loc, { weekday: 'short', day: 'numeric', month: 'numeric', timeZone: 'UTC' })
       .format(new Date(`${d}T12:00:00Z`));
-    return `${date} ${time}`;
+    return `${date} ${time} · ${min} ${labels.min}`;
   };
 
   const toggle = (wd: number) => setDays((cur) => {
     const next = { ...cur };
     if (next[wd]) delete next[wd];
-    else next[wd] = Object.values(cur).at(-1) ?? '18:00';
+    else next[wd] = Object.values(cur).at(-1) ?? { time: '18:00', min: 60 };
     return next;
   });
 
@@ -85,7 +89,15 @@ export default function BookingFields({ students, groups = [], preselect, labels
       </div>
 
       {mode === 'once' ? (
-        <label>{labels.when}<input type="datetime-local" name="slot" required /></label>
+        <div className="schedule-two">
+          <label>{labels.when}<input type="datetime-local" name="slot" required /></label>
+          <label>
+            {labels.duration}
+            <select name="duration_min" defaultValue="60">
+              {LENGTHS.map((m) => <option key={m} value={m}>{m} {labels.min}</option>)}
+            </select>
+          </label>
+        </div>
       ) : (
         <>
           <div className="book-days">
@@ -98,11 +110,15 @@ export default function BookingFields({ students, groups = [], preselect, labels
               ))}
             </div>
             {WEEK.filter((wd) => days[wd]).map((wd) => (
-              <label key={wd} className="day-time">
+              <div key={wd} className="day-time">
                 <span>{dayName(wd)}</span>
-                <input type="time" step={300} value={days[wd]} required
-                  onChange={(e) => setDays((cur) => ({ ...cur, [wd]: e.target.value }))} />
-              </label>
+                <input type="time" step={300} value={days[wd].time} required aria-label={`${dayName(wd)} · ${labels.when}`}
+                  onChange={(e) => setDays((cur) => ({ ...cur, [wd]: { ...cur[wd], time: e.target.value } }))} />
+                <select value={days[wd].min} aria-label={`${dayName(wd)} · ${labels.duration}`}
+                  onChange={(e) => setDays((cur) => ({ ...cur, [wd]: { ...cur[wd], min: Number(e.target.value) } }))}>
+                  {LENGTHS.map((m) => <option key={m} value={m}>{m} {labels.min}</option>)}
+                </select>
+              </div>
             ))}
           </div>
           <div className="schedule-two">

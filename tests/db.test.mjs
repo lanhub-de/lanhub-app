@@ -1158,3 +1158,26 @@ test('library links: the team sees them, the owner and head teacher add them', a
   // a folder with a link in it is not empty
   assert.ok(await fails(ids.owner, 'delete from public.library_folders where id = $1', [f.id]));
 });
+
+test('a booked lesson’s length changes like its time: kept in the history, not after it is marked', async () => {
+  const [l] = await rows(ids.nadiia,
+    `insert into public.lessons (teacher_id, student_id, starts_at) values ($1, $2, ${KYIV_10AM_IN_3_DAYS}) returning id`,
+    [ids.nadiia, ids.lina]);
+  await rows(ids.nadiia, 'update public.lessons set duration_min = 90 where id = $1', [l.id]);
+  const [m] = await rows(ids.owner, 'select from_min, to_min, day_changed, late from public.lesson_moves where lesson_id = $1', [l.id]);
+  assert.deepEqual([m.from_min, m.to_min, m.day_changed, m.late], [60, 90, false, false]);
+  const [held] = await rows(ids.nadiia,
+    `insert into public.lessons (teacher_id, student_id, starts_at, status) values ($1, $2, now() - interval '2 hours', 'done') returning id`,
+    [ids.nadiia, ids.lina]);
+  assert.match(await fails(ids.nadiia, 'update public.lessons set duration_min = 120 where id = $1', [held.id]), /not marked yet/);
+});
+
+test('the head teacher adds and edits packages, but not payments', async () => {
+  const [p] = await rows(ids.agata,
+    `insert into public.packages (student_id, lessons_total, validity_months) values ($1, 10, 2) returning id`, [ids.lina]);
+  await rows(ids.agata, 'update public.packages set lessons_total = 12, note = $2 where id = $1', [p.id, 'mixed 60/90']);
+  const [row] = await rows(ids.owner, 'select lessons_total, note from public.packages where id = $1', [p.id]);
+  assert.deepEqual([row.lessons_total, row.note], [12, 'mixed 60/90']);
+  assert.ok(await fails(ids.agata, 'insert into public.student_payments (package_id, amount) values ($1, 100)', [p.id]));
+  assert.ok(await fails(ids.nadiia, `insert into public.packages (student_id, lessons_total) values ($1, 4)`, [ids.lina]));
+});

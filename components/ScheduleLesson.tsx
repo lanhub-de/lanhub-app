@@ -9,7 +9,7 @@ export function bookingLabels(t: T): BookingLabels {
   return {
     whoWith: t('whoWith'), once: t('bookOnce'), regular: t('bookRegular'), when: t('whenKyiv'), days: t('bookDays'),
     from: t('bookFrom'), count: t('bookCount'), preview: t('bookPreview'), left: t('bookLeft'), over: t('bookOver'),
-    pickDay: t('bookPickDay'),
+    pickDay: t('bookPickDay'), duration: t('duration'), min: t('minShort'),
   };
 }
 
@@ -33,14 +33,6 @@ export default function ScheduleLesson({
         {teacherId && <input type="hidden" name="teacher_id" value={teacherId} />}
         {pending && <input type="hidden" name="pending" value={pending} />}
         <BookingFields students={students} groups={groups} preselect={preselect} labels={bookingLabels(t)} locale={locale} />
-        <label>
-          {t('duration')}
-          <select name="duration_min" defaultValue="60">
-            <option value="45">45 {t('minShort')}</option>
-            <option value="60">60 {t('minShort')}</option>
-            <option value="90">90 {t('minShort')}</option>
-          </select>
-        </label>
         {school && (
           <label>
             {t('lessonKind')}

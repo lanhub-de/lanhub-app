@@ -25,9 +25,9 @@ export async function setLessonStatus(formData: FormData) {
   back(returnTo, error?.message);
 }
 
-// A lesson moved to another time (Kyiv time in the form). The database keeps
-// the move in the lesson's history (the school sees moves to another day);
-// the student gets a note in her chat with the teacher.
+// A lesson moved to another time and/or given another length (Kyiv time in
+// the form). The database keeps the change in the lesson's history (the school
+// sees moves to another day and length changes); the student gets a note.
 export async function moveLesson(formData: FormData) {
   const id = String(formData.get('id'));
   const returnTo = String(formData.get('return_to') || '/teacher');
@@ -36,15 +36,43 @@ export async function moveLesson(formData: FormData) {
   const to = kyivLocalToIso(local);
   if (Number.isNaN(new Date(to).getTime())) return back(returnTo, 'Check the date and time');
   const supabase = await supabaseServer();
-  const { data: before } = await supabase.from('lessons').select('starts_at, student_id, teacher_id, pending_teacher')
+  const { data: before } = await supabase.from('lessons').select('starts_at, duration_min, student_id, teacher_id, pending_teacher')
     .eq('id', id).maybeSingle();
   if (!before) return back(returnTo, 'Lesson not found');
-  if (new Date(before.starts_at).getTime() === new Date(to).getTime()) return back(returnTo);
-  const { error } = await supabase.from('lessons').update({ starts_at: to }).eq('id', id);
+  const minutes = Number(formData.get('duration_min') || before.duration_min || 60);
+  const length = [30, 45, 60, 75, 90, 105, 120, 150, 180].includes(minutes) ? minutes : before.duration_min;
+  const moved = new Date(before.starts_at).getTime() !== new Date(to).getTime();
+  if (!moved && length === before.duration_min) return back(returnTo);
+  const { error } = await supabase.from('lessons').update({ starts_at: to, duration_min: length }).eq('id', id);
   if (error) return back(returnTo, error.message);
   if (before.student_id && !before.pending_teacher) {
-    await tellStudent(supabase, before.student_id, before.teacher_id,
-      `🔁 Заняття перенесено / Lesson moved: ${fmtKyiv(before.starts_at)} → ${fmtKyiv(to)}`);
+    await tellStudent(supabase, before.student_id, before.teacher_id, moved
+      ? `🔁 Заняття перенесено / Lesson moved: ${fmtKyiv(before.starts_at)} → ${fmtKyiv(to)} (${length} хв / min)`
+      : `⏱ Заняття ${fmtKyiv(to)} триватиме ${length} хв / The lesson will take ${length} min`);
+  }
+  back(returnTo);
+}
+
+// For teachers who agree on each lesson: the same lesson again a week later
+// (same length, Zoom), to adjust if needed.
+export async function repeatLesson(formData: FormData) {
+  const id = String(formData.get('id'));
+  const returnTo = String(formData.get('return_to') || '/teacher');
+  const supabase = await supabaseServer();
+  const { data: l } = await supabase.from('lessons')
+    .select('teacher_id, student_id, group_id, kind, starts_at, duration_min, zoom_url, pending_teacher, package_id')
+    .eq('id', id).maybeSingle();
+  if (!l) return back(returnTo, 'Lesson not found');
+  const next = new Date(new Date(l.starts_at).getTime() + 7 * 24 * 3600e3).toISOString();
+  const row: Record<string, unknown> = {
+    teacher_id: l.teacher_id, starts_at: next, duration_min: l.duration_min, zoom_url: l.zoom_url, kind: l.kind,
+  };
+  if (l.pending_teacher) row.pending_teacher = l.pending_teacher;
+  if (l.group_id) row.group_id = l.group_id; else row.student_id = l.student_id;
+  const { error } = await supabase.from('lessons').insert(row);
+  if (error) return back(returnTo, error.message);
+  if (l.student_id && !l.pending_teacher) {
+    await tellStudent(supabase, l.student_id, l.teacher_id, `📅 Нове заняття / New lesson: ${fmtKyiv(next)}`);
   }
   back(returnTo);
 }
@@ -92,16 +120,21 @@ export async function addLesson(formData: FormData) {
   if (!who) return back(returnTo, 'Choose who the lesson is with');
   if (!slots.length) return back(returnTo, 'Choose the date and time');
   if (slots.length > 24) return back(returnTo, 'At most 24 lessons at once');
-  if (slots.some((x) => Number.isNaN(new Date(kyivLocalToIso(x)).getTime()))) return back(returnTo, 'Check the date and time');
+  const lengthOf = (slot: string) => {
+    const m = Number(slot.split('|')[1] || formData.get('duration_min') || 60);
+    return [30, 45, 60, 75, 90, 105, 120, 150, 180].includes(m) ? m : 60;
+  };
+  const whenOf = (slot: string) => slot.split('|')[0];
+  if (slots.some((x) => Number.isNaN(new Date(kyivLocalToIso(whenOf(x))).getTime()))) return back(returnTo, 'Check the date and time');
   const [type, id] = who.split(':');
   const pending = String(formData.get('pending') || '') || null;
   const teacherId = pending ? user.id : String(formData.get('teacher_id') || user.id);
   const kind = String(formData.get('kind') || '');
-  const rows = slots.map((local) => {
+  const rows = slots.map((slot) => {
     const row: Record<string, unknown> = {
       teacher_id: teacherId,
-      starts_at: kyivLocalToIso(local),
-      duration_min: Number(formData.get('duration_min') || 60),
+      starts_at: kyivLocalToIso(whenOf(slot)),
+      duration_min: lengthOf(slot),
       zoom_url: String(formData.get('zoom_url') || '') || null,
     };
     if (pending) row.pending_teacher = pending;

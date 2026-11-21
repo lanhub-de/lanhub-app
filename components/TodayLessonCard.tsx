@@ -1,9 +1,9 @@
 import Link from 'next/link';
 import type { Locale, T } from '@/lib/i18n';
 import { SCHOOL_TZ } from '@/lib/i18n';
-import { canDeleteBooking, lastDayMove, zoomOf, type LessonDb } from '@/lib/lessons';
+import { canDeleteBooking, lastDayMove, lengthChange, zoomOf, type LessonDb } from '@/lib/lessons';
 import { fmtMoney } from '@/lib/i18n';
-import { attachLessonFile, deleteLesson, detachLessonFile, moveLesson, saveLessonPlan, setLessonStatus } from '@/app/teacher/actions';
+import { attachLessonFile, deleteLesson, detachLessonFile, moveLesson, repeatLesson, saveLessonPlan, setLessonStatus } from '@/app/teacher/actions';
 import { fmtDateTime } from '@/lib/i18n';
 import LessonFileUpload from '@/components/LessonFileUpload';
 import Submit from '@/components/Submit';
@@ -39,6 +39,7 @@ export default function TodayLessonCard({
   const held = ['done', 'no_show', 'late_cancel'].includes(lesson.status);
   const who = lesson.students?.full_name ?? lesson.groups?.name ?? '';
   const moved = lastDayMove(lesson);
+  const lengthChanged = lengthChange(lesson);
   const level = lesson.students?.level ?? lesson.groups?.level;
   const status = (s: string, label: string, cls = '') => (
     <form action={setLessonStatus}>
@@ -53,6 +54,7 @@ export default function TodayLessonCard({
       <div className="today-top">
         <div className="today-when">
           <span className="today-time">{timeIn(lesson.starts_at, SCHOOL_TZ, locale)}</span>
+          <span className="muted" style={{ fontSize: 13 }}>{lesson.duration_min} {t('minShort')}</span>
           {showDay && <span className="muted" style={{ fontSize: 13 }}>{dayIn(lesson.starts_at, SCHOOL_TZ, locale)}</span>}
         </div>
         <div className="today-who">
@@ -63,6 +65,9 @@ export default function TodayLessonCard({
               ↪ {t('movedFrom', { when: fmtDateTime(moved.from, locale) })}
               {moved.late && <span className="pill warn">{t('movedLate')}</span>}
             </span>
+          )}
+          {lengthChanged && (
+            <span className="moved-note">⏱ {lengthChanged.from} → {lengthChanged.to} {t('minShort')}</span>
           )}
         </div>
         <div className="today-actions">
@@ -77,8 +82,20 @@ export default function TodayLessonCard({
                     <input type="hidden" name="id" value={lesson.id} />
                     <input type="hidden" name="return_to" value={returnTo} />
                     <label>{t('newTime')}<input type="datetime-local" name="starts_at" required defaultValue={localValue(lesson.starts_at)} /></label>
+                    <label>
+                      {t('duration')}
+                      <select name="duration_min" defaultValue={String(lesson.duration_min ?? 60)}>
+                        {[45, 60, 90, 120].map((m) => <option key={m} value={m}>{m} {t('minShort')}</option>)}
+                      </select>
+                    </label>
                     <Submit className="primary small">{t('save')}</Submit>
                     <small className="muted">{t('moveHint')}</small>
+                  </form>
+                  <form action={repeatLesson} className="stack" style={{ gap: 6, borderTop: '1px solid var(--line)', paddingTop: 8 }}>
+                    <input type="hidden" name="id" value={lesson.id} />
+                    <input type="hidden" name="return_to" value={returnTo} />
+                    <Submit className="small">↻ {t('repeatNextWeek')}</Submit>
+                    <small className="muted">{t('repeatNextWeekHint')}</small>
                   </form>
                   {canDeleteBooking(lesson, userId) && (
                     <details className="delete-booking">

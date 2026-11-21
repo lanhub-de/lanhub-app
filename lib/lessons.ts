@@ -3,7 +3,7 @@
 import type { LessonView } from '@/components/LessonRow';
 
 export const LESSON_SELECT =
-  'id, starts_at, status, kind, zoom_url, teacher_id, group_id, student_id, recording_url, homework_url, note, homework_text, students!lessons_student_id_fkey(full_name, level, zoom_url), groups!lessons_group_id_fkey(name, level, tz, zoom_url), profiles!lessons_teacher_id_fkey(full_name), pending_teacher, invites!lessons_pending_teacher_fkey(full_name), program_lessons(n, title, topic, homework_url, vocab_url, slides_url, teacher_note), lesson_pay!lesson_pay_lesson_id_fkey(amount), created_by, created_at, lesson_moves(from_at, day_changed, late, moved_at)';
+  'id, starts_at, duration_min, status, kind, zoom_url, teacher_id, group_id, student_id, recording_url, homework_url, note, homework_text, students!lessons_student_id_fkey(full_name, level, zoom_url), groups!lessons_group_id_fkey(name, level, tz, zoom_url), profiles!lessons_teacher_id_fkey(full_name), pending_teacher, invites!lessons_pending_teacher_fkey(full_name), program_lessons(n, title, topic, homework_url, vocab_url, slides_url, teacher_note), lesson_pay!lesson_pay_lesson_id_fkey(amount), created_by, created_at, lesson_moves(from_at, day_changed, late, moved_at, from_min, to_min)';
 
 export type ProgramLessonInfo = {
   n: number; title: string; topic: string | null; homework_url: string | null; vocab_url: string | null;
@@ -11,7 +11,7 @@ export type ProgramLessonInfo = {
 };
 
 export type LessonDb = {
-  id: string; starts_at: string; status: string; kind: string; zoom_url: string | null; teacher_id: string;
+  id: string; starts_at: string; duration_min: number; status: string; kind: string; zoom_url: string | null; teacher_id: string;
   group_id?: string | null; student_id?: string | null; recording_url?: string | null; homework_url?: string | null;
   note?: string | null; homework_text?: string | null;
   program_lessons?: ProgramLessonInfo | null;
@@ -26,13 +26,21 @@ export type LessonDb = {
   lesson_moves?: LessonMove[] | null;
 };
 
-export type LessonMove = { from_at: string; day_changed: boolean; late: boolean; moved_at: string };
+export type LessonMove = { from_at: string; day_changed: boolean; late: boolean; moved_at: string; from_min?: number | null; to_min?: number | null };
 
 // The move the school should see: the latest one to another day.
 export function lastDayMove(l: Pick<LessonDb, 'lesson_moves'>) {
   const moves = (l.lesson_moves ?? []).filter((m) => m.day_changed).sort((a, b) => a.moved_at.localeCompare(b.moved_at));
   const last = moves.at(-1);
   return last ? { from: last.from_at, late: moves.some((m) => m.late) } : null;
+}
+
+// A length change the school should see: the first length booked → the current one.
+export function lengthChange(l: Pick<LessonDb, 'lesson_moves' | 'duration_min'>) {
+  const changes = (l.lesson_moves ?? []).filter((m) => m.from_min != null && m.to_min != null && m.from_min !== m.to_min)
+    .sort((a, b) => a.moved_at.localeCompare(b.moved_at));
+  if (!changes.length || changes[0].from_min === l.duration_min) return null;
+  return { from: changes[0].from_min as number, to: l.duration_min };
 }
 
 // A teacher may delete her own booking before it starts, within a day of booking it.
@@ -52,6 +60,7 @@ export function toView(l: LessonDb, withTeacher = false, pendingLabel = ''): Les
       : l.pending_teacher ? `${l.invites?.full_name ?? l.pending_teacher}${pendingLabel ? ` · ${pendingLabel}` : ''}`
         : l.profiles?.full_name,
     moved: lastDayMove(l),
+    lengthChanged: lengthChange(l),
   };
 }
 

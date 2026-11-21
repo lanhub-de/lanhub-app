@@ -76,14 +76,7 @@ export default async function LessonsPage({
           <BookingFields locale={profile.locale} labels={bookingLabels(t)}
             students={(students.data ?? []).map((s) => ({ id: s.id, name: s.full_name, level: s.level, left: leftOf.get(s.id) ?? null }))}
             groups={groups.data ?? []} />
-          <label>
-            {t('duration')}
-            <select name="duration_min" defaultValue="60">
-              <option value="45">45 {t('minShort')}</option>
-              <option value="60">60 {t('minShort')}</option>
-              <option value="90">90 {t('minShort')}</option>
-            </select>
-          </label>
+
           <label>{t('zoomLink')}<input type="url" name="zoom_url" /></label>
           <Submit className="primary">{t('add')}</Submit>
         </form>

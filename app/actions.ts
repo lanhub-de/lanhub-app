@@ -4,10 +4,23 @@ import { headers } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import { supabaseServer } from '@/lib/supabase/server';
 
+// Signs out this device only: the phone stays signed in when the laptop signs out.
 export async function signOut() {
   const supabase = await supabaseServer();
-  await supabase.auth.signOut();
+  await supabase.auth.signOut({ scope: 'local' });
   redirect('/login');
+}
+
+// A password lets people sign in without a code in their email each time.
+export async function setPassword(formData: FormData) {
+  const password = String(formData.get('password') ?? '');
+  const repeat = String(formData.get('repeat') ?? '');
+  if (password.length < 8) redirect('/settings?e=' + encodeURIComponent('PW_SHORT'));
+  if (password !== repeat) redirect('/settings?e=' + encodeURIComponent('PW_MISMATCH'));
+  const supabase = await supabaseServer();
+  const { error } = await supabase.auth.updateUser({ password });
+  if (error) redirect('/settings?e=' + encodeURIComponent(error.message));
+  redirect('/settings?pw=1');
 }
 
 export async function saveSettings(formData: FormData) {

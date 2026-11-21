@@ -13,6 +13,7 @@ export type LessonView = {
   who: string;
   level?: string | null;
   moved?: { from: string; late: boolean } | null;
+  lengthChanged?: { from: number; to: number } | null;
 };
 
 const OTHER = ['no_show', 'late_cancel', 'cancelled', 'force_majeure', 'rescheduled'];
@@ -40,6 +41,9 @@ export default function LessonRow({
             ↪ {t('movedFrom', { when: fmtDateTime(lesson.moved.from, locale) })}
             {lesson.moved.late && <span className="pill warn">{t('movedLate')}</span>}
           </div>
+        )}
+        {lesson.lengthChanged && (
+          <div className="moved-note">⏱ {lesson.lengthChanged.from} → {lesson.lengthChanged.to} {t('minShort')}</div>
         )}
       </div>
       <div className="row">

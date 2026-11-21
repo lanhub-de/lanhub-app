@@ -7,7 +7,7 @@ import { fmtDate, fmtMoney } from '@/lib/i18n';
 import { LESSON_SELECT, toView, type LessonDb } from '@/lib/lessons';
 import { INVITE, pendingTeachers } from '@/lib/invites';
 import InviteStudent from '@/components/InviteStudent';
-import { addPackage, addToGroup, deleteStudent, extendPackage, updateStudent } from '../../actions';
+import { addPackage, addToGroup, deleteStudent, extendPackage, updatePackage, updateStudent } from '../../actions';
 import Submit from '@/components/Submit';
 
 export default async function StudentPage({
@@ -17,11 +17,14 @@ export default async function StudentPage({
   const { id } = await params;
   const sp = await searchParams;
   const canSell = profile.role === 'owner' || profile.role === 'manager';
+  // the head teacher manages packages too, but not payments
+  const canPack = canSell || profile.role === 'head_teacher';
 
-  const [student, teachers, packages, payments, lessons, groups, memberships, invited] = await Promise.all([
+  const [student, teachers, packages, packageRows, payments, lessons, groups, memberships, invited] = await Promise.all([
     supabase.from('students').select('*').eq('id', id).maybeSingle(),
     supabase.from('profiles').select('id, full_name').in('role', ['teacher', 'head_teacher', 'owner']).eq('active', true).order('full_name'),
     supabase.from('package_usage').select('*').eq('student_id', id),
+    supabase.from('packages').select('id, validity_months, note').eq('student_id', id),
     canSell ? supabase.from('student_payments').select('package_id, amount, currency, method, paid_at') : Promise.resolve({ data: [] }),
     supabase.from('lessons').select(LESSON_SELECT).eq('student_id', id).order('starts_at', { ascending: false }).limit(30).returns<LessonDb[]>(),
     supabase.from('groups').select('id, name').eq('active', true).order('name'),
@@ -30,6 +33,7 @@ export default async function StudentPage({
   ]);
   if (!student.data) notFound();
   const s = student.data;
+  const pkgInfo = new Map((packageRows.data ?? []).map((p) => [p.id as string, p as { id: string; validity_months: number; note: string | null }]));
   const pkgs = (packages.data ?? []).sort((a, b) => String(b.first_lesson_at ?? '9').localeCompare(String(a.first_lesson_at ?? '9')));
   const paysByPkg = new Map<string, { amount: number; currency: string; method: string | null; paid_at: string }[]>();
   for (const p of (payments.data ?? []) as { package_id: string; amount: number; currency: string; method: string | null; paid_at: string }[]) {
@@ -68,7 +72,8 @@ export default async function StudentPage({
                   {fmtMoney(pay.amount, pay.currency)}{pay.method ? ` · ${pay.method}` : ''} · {fmtDate(pay.paid_at, profile.locale)}
                 </span>
               ))}
-              {canSell && p.status === 'active' && (
+              {pkgInfo.get(p.package_id)?.note && <span className="muted">{pkgInfo.get(p.package_id)?.note}</span>}
+              {canPack && p.status === 'active' && (
                 <form action={extendPackage} className="row">
                   <input type="hidden" name="student_id" value={id} />
                   <input type="hidden" name="package_id" value={p.package_id} />
@@ -76,25 +81,47 @@ export default async function StudentPage({
                   <Submit className="small">+ {t('st_force_majeure')}</Submit>
                 </form>
               )}
+              {canPack && (
+                <details>
+                  <summary className="link-btn">{t('pkgEdit')}</summary>
+                  <form action={updatePackage} className="form" style={{ marginTop: 10 }}>
+                    <input type="hidden" name="student_id" value={id} />
+                    <input type="hidden" name="package_id" value={p.package_id} />
+                    <label>{t('lessonsTotal')}<input name="lessons_total" type="number" min={1} max={200} required defaultValue={p.lessons_total} /></label>
+                    <label>{t('pkgMonths')}<input name="validity_months" type="number" min={1} max={24} required defaultValue={pkgInfo.get(p.package_id)?.validity_months ?? 1} /></label>
+                    <label>{t('status')}
+                      <select name="status" defaultValue={p.status === 'expired' ? 'active' : p.status}>
+                        <option value="active">{t('pkg_active')}</option>
+                        <option value="finished">{t('pkg_finished')}</option>
+                        <option value="cancelled">{t('pkg_cancelled')}</option>
+                      </select>
+                    </label>
+                    <label>{t('note')}<input name="note" defaultValue={pkgInfo.get(p.package_id)?.note ?? ''} placeholder={t('pkgNoteHint')} /></label>
+                    <Submit className="primary small">{t('save')}</Submit>
+                  </form>
+                </details>
+              )}
             </div>
           ))}
-          {canSell && (
+          {canPack && (
             <details className="card">
               <summary>+ {t('addPackage')}</summary>
               <form action={addPackage} className="form" style={{ marginTop: 12 }}>
                 <input type="hidden" name="student_id" value={id} />
-                <label>{t('lessonsTotal')}
-                  <select name="lessons_total" defaultValue="8">
-                    {[1, 4, 8, 12, 16, 24].map((n) => <option key={n} value={n}>{n}</option>)}
-                  </select>
-                </label>
-                <label>{t('payment')}<input name="amount" type="number" min={0} step="0.01" /></label>
-                <label>€ / ₴
-                  <select name="currency" defaultValue={s.market === 'intl' ? 'EUR' : 'UAH'}>
-                    <option value="UAH">UAH</option><option value="EUR">EUR</option><option value="USD">USD</option>
-                  </select>
-                </label>
-                <label>{t('method')}<input name="method" placeholder="WayForPay, monobank…" /></label>
+                <label>{t('lessonsTotal')}<input name="lessons_total" type="number" min={1} max={200} required defaultValue={8} /></label>
+                <label>{t('pkgMonths')}<input name="validity_months" type="number" min={1} max={24} required defaultValue={1} /></label>
+                <label>{t('note')}<input name="note" placeholder={t('pkgNoteHint')} /></label>
+                {canSell && (
+                  <>
+                    <label>{t('payment')}<input name="amount" type="number" min={0} step="0.01" /></label>
+                    <label>€ / ₴
+                      <select name="currency" defaultValue={s.market === 'intl' ? 'EUR' : 'UAH'}>
+                        <option value="UAH">UAH</option><option value="EUR">EUR</option><option value="USD">USD</option>
+                      </select>
+                    </label>
+                    <label>{t('method')}<input name="method" placeholder="WayForPay, monobank…" /></label>
+                  </>
+                )}
                 <Submit className="primary">{t('add')}</Submit>
               </form>
             </details>

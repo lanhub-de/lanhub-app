@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import type { Profile } from '@/lib/session';
 import type { T } from '@/lib/i18n';
-import { setLocale, signOut } from '@/app/actions';
+import { setLocale } from '@/app/actions';
 import ChatBadge from '@/components/ChatBadge';
 import StudentShell from '@/components/StudentShell';
 import LocaleMark from '@/components/LocaleMark';
@@ -96,7 +96,6 @@ export default function Shell({
               <span className={profile.locale === 'uk' ? 'on' : ''}>UA</span>
             </Submit>
           </form>
-          <form action={signOut}><Submit className="small">{t('signOut')}</Submit></form>
         </div>
       </header>
       {side ? (

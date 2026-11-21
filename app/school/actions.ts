@@ -60,12 +60,17 @@ export async function updateStudent(f: FormData) {
 export async function addPackage(f: FormData) {
   const studentId = str(f, 'student_id');
   const supabase = await supabaseServer();
+  const lessons = Math.round(Number(str(f, 'lessons_total')));
+  if (!Number.isFinite(lessons) || lessons < 1 || lessons > 200) go(`/school/students/${studentId}`, 'Check the number of lessons');
+  const months = Math.round(Number(str(f, 'validity_months') || 1));
   const { data, error } = await supabase.from('packages').insert({
     student_id: studentId,
-    lessons_total: Number(str(f, 'lessons_total')),
+    lessons_total: lessons,
+    validity_months: months >= 1 && months <= 24 ? months : 1,
     note: optional(f, 'note'),
   }).select('id').single();
   if (error) go(`/school/students/${studentId}`, error.message);
+  // payments: the owner and managers (the head teacher has no payment fields)
   const amount = str(f, 'amount');
   if (amount) {
     const { error: payError } = await supabase.from('student_payments').insert({
@@ -74,6 +79,23 @@ export async function addPackage(f: FormData) {
     if (payError) go(`/school/students/${studentId}`, payError.message);
   }
   done(`/school/students/${studentId}`);
+}
+
+// Fix a package: number of lessons, how long it lasts, its status and a note.
+export async function updatePackage(f: FormData) {
+  const studentId = str(f, 'student_id');
+  const lessons = Math.round(Number(str(f, 'lessons_total')));
+  const months = Math.round(Number(str(f, 'validity_months')));
+  const status = str(f, 'status');
+  if (!Number.isFinite(lessons) || lessons < 1 || lessons > 200) go(`/school/students/${studentId}`, 'Check the number of lessons');
+  const supabase = await supabaseServer();
+  const { error } = await supabase.from('packages').update({
+    lessons_total: lessons,
+    validity_months: months >= 1 && months <= 24 ? months : 1,
+    status: ['active', 'finished', 'cancelled'].includes(status) ? status : 'active',
+    note: optional(f, 'note'),
+  }).eq('id', str(f, 'package_id'));
+  done(`/school/students/${studentId}`, error?.message);
 }
 
 // Only the owner deletes, and only a card without lessons: a student who has
