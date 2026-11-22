@@ -1,11 +1,12 @@
 import type { Locale, T } from '@/lib/i18n';
 import { fmtDateTime } from '@/lib/i18n';
-import { setLessonStatus } from '@/app/teacher/actions';
+import { deleteLesson, moveLesson, setLessonStatus } from '@/app/teacher/actions';
 import Submit from '@/components/Submit';
 
 export type LessonView = {
   id: string;
   starts_at: string;
+  duration_min?: number;
   status: string;
   kind: string;
   zoom_url: string | null;
@@ -18,10 +19,19 @@ export type LessonView = {
 
 const OTHER = ['no_show', 'late_cancel', 'cancelled', 'force_majeure', 'rescheduled'];
 
-// One lesson with the buttons to mark how it went.
+function localValue(iso: string) {
+  const d = new Date(iso);
+  const p = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Kyiv', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+  }).formatToParts(d).reduce<Record<string, string>>((a, x) => ({ ...a, [x.type]: x.value }), {});
+  return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`;
+}
+
+// One lesson with the buttons to mark how it went. In the school's journal
+// (canEdit) also: change the day, time or length, or delete a wrong lesson.
 export default function LessonRow({
-  lesson, t, locale, returnTo, canMark,
-}: { lesson: LessonView; t: T; locale: Locale; returnTo: string; canMark: boolean }) {
+  lesson, t, locale, returnTo, canMark, canEdit = false,
+}: { lesson: LessonView; t: T; locale: Locale; returnTo: string; canMark: boolean; canEdit?: boolean }) {
   // green only for a lesson actually held: the only one a teacher is paid for
   const counted = lesson.status === 'done';
   return (
@@ -72,6 +82,35 @@ export default function LessonRow({
               <Submit className="small">OK</Submit>
             </form>
           </>
+        )}
+        {canEdit && (
+          <details className="move">
+            <summary className="btn small">{t('btnMove')}</summary>
+            <div className="move-form">
+              <form action={moveLesson} className="stack" style={{ gap: 8 }}>
+                <strong style={{ fontSize: 15 }}>{t('moveTitle')}</strong>
+                <input type="hidden" name="id" value={lesson.id} />
+                <input type="hidden" name="return_to" value={returnTo} />
+                <label>{t('newTime')}<input type="datetime-local" name="starts_at" required defaultValue={localValue(lesson.starts_at)} /></label>
+                <label>
+                  {t('duration')}
+                  <select name="duration_min" defaultValue={String(lesson.duration_min ?? 60)}>
+                    {[45, 60, 90, 120].map((m) => <option key={m} value={m}>{m} {t('minShort')}</option>)}
+                  </select>
+                </label>
+                <Submit className="primary small">{t('save')}</Submit>
+              </form>
+              <details className="delete-booking">
+                <summary className="link-btn">{t('deleteLesson')}</summary>
+                <form action={deleteLesson} className="stack" style={{ gap: 6 }}>
+                  <input type="hidden" name="id" value={lesson.id} />
+                  <input type="hidden" name="return_to" value={returnTo} />
+                  <small className="muted">{t('deleteLessonHint')}</small>
+                  <Submit className="small danger">{t('deleteConfirm')}</Submit>
+                </form>
+              </details>
+            </div>
+          </details>
         )}
       </div>
     </div>

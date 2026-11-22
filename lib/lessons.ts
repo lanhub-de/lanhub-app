@@ -44,7 +44,8 @@ export function lengthChange(l: Pick<LessonDb, 'lesson_moves' | 'duration_min'>)
 }
 
 // A teacher may delete her own booking before it starts, within a day of booking it.
-export function canDeleteBooking(l: Pick<LessonDb, 'status' | 'starts_at' | 'created_by' | 'created_at'>, userId?: string) {
+export function canDeleteBooking(l: Pick<LessonDb, 'status' | 'starts_at' | 'created_by' | 'created_at'>, userId?: string, school = false) {
+  if (school) return true; // owner, manager, head teacher clean up any lesson
   if (!userId || l.status !== 'scheduled' || l.created_by !== userId || !l.created_at) return false;
   const now = Date.now();
   return new Date(l.starts_at).getTime() > now && now - new Date(l.created_at).getTime() < 24 * 3600e3;
@@ -53,7 +54,7 @@ export function canDeleteBooking(l: Pick<LessonDb, 'status' | 'starts_at' | 'cre
 // pendingLabel marks a lesson that waits for an invited teacher.
 export function toView(l: LessonDb, withTeacher = false, pendingLabel = ''): LessonView {
   return {
-    id: l.id, starts_at: l.starts_at, status: l.status, kind: l.kind, zoom_url: l.zoom_url,
+    id: l.id, starts_at: l.starts_at, duration_min: l.duration_min, status: l.status, kind: l.kind, zoom_url: l.zoom_url,
     who: l.students?.full_name ?? l.groups?.name ?? '',
     level: l.students?.level ?? l.groups?.level ?? null,
     teacher_name: !withTeacher ? undefined

@@ -130,7 +130,7 @@ export default async function StudentPage({
           <h2 style={{ marginTop: 12 }}>{t('journal')}</h2>
           {(lessons.data ?? []).length === 0 && <p className="muted">{t('nothingHere')}</p>}
           {(lessons.data ?? []).map((l) => (
-            <LessonRow key={l.id} lesson={toView(l, true, t('pending'))} t={t} locale={profile.locale} returnTo={`/school/students/${id}`} canMark />
+            <LessonRow key={l.id} lesson={toView(l, true, t('pending'))} t={t} locale={profile.locale} returnTo={`/school/students/${id}`} canMark canEdit />
           ))}
         </section>
 

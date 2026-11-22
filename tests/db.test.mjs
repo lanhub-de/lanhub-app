@@ -1198,3 +1198,16 @@ test('a package counts hours: a 90-minute lesson uses 1.5, a 60-minute one 1', a
   const [u2] = await rows(ids.owner, 'select lessons_used, status from public.package_usage where package_id = $1', [p.id]);
   assert.deepEqual([Number(u2.lessons_used), u2.status], [3.5, 'finished']);
 });
+
+test('nobody marks a future lesson held; the head teacher can delete a wrong lesson', async () => {
+  const [future] = await rows(ids.agata,
+    `insert into public.lessons (teacher_id, student_id, starts_at) values ($1, $2, now() + interval '3 days') returning id`,
+    [ids.agata, ids.lina]);
+  assert.match(await fails(ids.agata, `update public.lessons set status = 'done' where id = $1`, [future.id]), /before it starts/);
+  assert.match(await fails(ids.owner, `update public.lessons set status = 'done' where id = $1`, [future.id]), /before it starts/);
+  const [byNadiia] = await rows(ids.nadiia,
+    `insert into public.lessons (teacher_id, student_id, starts_at) values ($1, $2, now() - interval '30 days') returning id`,
+    [ids.nadiia, ids.lina]);
+  await rows(ids.agata, 'delete from public.lessons where id = $1', [byNadiia.id]);
+  assert.equal((await rows(ids.owner, 'select 1 from public.lessons where id = $1', [byNadiia.id])).length, 0);
+});

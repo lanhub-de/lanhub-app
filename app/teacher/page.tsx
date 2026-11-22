@@ -106,7 +106,8 @@ export default async function TeacherPage({ searchParams }: { searchParams: Prom
   const card = (l: LessonDb, showDay = false) => l.group_id && l.program_lessons
     ? <GroupLessonCard key={l.id} lesson={l} members={membersOf(l.group_id)} absent={absentIn(l.id)} t={t} locale={profile.locale} returnTo={here} />
     : <TodayLessonCard key={l.id} lesson={l} t={t} locale={profile.locale} returnTo={here} showDay={showDay}
-        materials={materialsOf(l.id)} library={libraryRefs} userId={profile.id} teacherZoom={teacherZoom} />;
+        materials={materialsOf(l.id)} library={libraryRefs} userId={profile.id} teacherZoom={teacherZoom}
+        school={['owner', 'manager', 'head_teacher'].includes(profile.role)} />;
 
   const myStudents = (students.data ?? []).filter((s) => (who.pending ? s.pending_teacher === who.pending : s.teacher_id === who.id && !s.pending_teacher));
   const pkgByStudent = new Map((packages.data ?? []).map((p) => [p.student_id, p]));

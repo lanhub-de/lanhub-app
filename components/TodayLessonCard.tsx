@@ -29,10 +29,10 @@ function localValue(iso: string) {
 // An individual lesson in the teacher's day, as in the mockup: the time, who,
 // and three buttons. Anything else (cancelled in time, force majeure) under "…".
 export default function TodayLessonCard({
-  lesson, t, locale, returnTo, showDay, materials = [], library = [], userId, teacherZoom,
+  lesson, t, locale, returnTo, showDay, materials = [], library = [], userId, teacherZoom, school = false,
 }: {
   lesson: LessonDb; t: T; locale: Locale; returnTo: string; showDay?: boolean;
-  materials?: FileRef[]; library?: FileRef[]; userId?: string; teacherZoom?: string | null;
+  materials?: FileRef[]; library?: FileRef[]; userId?: string; teacherZoom?: string | null; school?: boolean;
 }) {
   const zoom = zoomOf(lesson, teacherZoom);
   const paid = lesson.lesson_pay?.amount != null && Number(lesson.lesson_pay.amount) > 0 ? Number(lesson.lesson_pay.amount) : null;
@@ -97,7 +97,7 @@ export default function TodayLessonCard({
                     <Submit className="small">↻ {t('repeatNextWeek')}</Submit>
                     <small className="muted">{t('repeatNextWeekHint')}</small>
                   </form>
-                  {canDeleteBooking(lesson, userId) && (
+                  {canDeleteBooking(lesson, userId, school) && (
                     <details className="delete-booking">
                       <summary className="link-btn">{t('deleteBooking')}</summary>
                       <form action={deleteLesson} className="stack" style={{ gap: 6 }}>

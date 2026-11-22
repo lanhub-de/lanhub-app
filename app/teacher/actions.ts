@@ -45,7 +45,9 @@ export async function moveLesson(formData: FormData) {
   if (!moved && length === before.duration_min) return back(returnTo);
   const { error } = await supabase.from('lessons').update({ starts_at: to, duration_min: length }).eq('id', id);
   if (error) return back(returnTo, error.message);
-  if (before.student_id && !before.pending_teacher) {
+  // a note only about lessons still ahead (fixing the journal afterwards is quiet)
+  const ahead = Math.max(new Date(before.starts_at).getTime(), new Date(to).getTime()) > Date.now();
+  if (ahead && before.student_id && !before.pending_teacher) {
     await tellStudent(supabase, before.student_id, before.teacher_id, moved
       ? `🔁 Заняття перенесено / Lesson moved: ${fmtKyiv(before.starts_at)} → ${fmtKyiv(to)} (${length} хв / min)`
       : `⏱ Заняття ${fmtKyiv(to)} триватиме ${length} хв / The lesson will take ${length} min`);
@@ -89,7 +91,7 @@ export async function deleteLesson(formData: FormData) {
   const { data: gone, error } = await supabase.from('lessons').delete().eq('id', id).select('id');
   if (error) return back(returnTo, error.message);
   if (!gone?.length) return back(returnTo, 'This booking can no longer be deleted here: please ask the school');
-  if (l.student_id && !l.pending_teacher) {
+  if (new Date(l.starts_at).getTime() > Date.now() && l.student_id && !l.pending_teacher) {
     await tellStudent(supabase, l.student_id, l.teacher_id, `❌ Заняття скасовано / Lesson cancelled: ${fmtKyiv(l.starts_at)}`);
   }
   back(returnTo);
