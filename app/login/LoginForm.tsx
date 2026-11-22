@@ -1,12 +1,13 @@
 'use client';
 import { useState } from 'react';
 import { supabaseBrowser } from '@/lib/supabase/client';
+import { verifyCode } from './actions';
 
 type Labels = { email: string; send: string; sent: string; code: string; confirm: string; other: string };
 
 // Sign-in without passwords: the email carries a link and a code. The link
 // works in the same browser; the code works anywhere (e.g. email on the phone,
-// LanHub on the computer).
+// LanHub on the computer). Once per device: after that it stays signed in.
 export default function LoginForm({ labels }: { labels: Labels }) {
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
@@ -31,11 +32,9 @@ export default function LoginForm({ labels }: { labels: Labels }) {
     e.preventDefault();
     setBusy(true);
     setError('');
-    const { error } = await supabaseBrowser().auth.verifyOtp({
-      email: email.trim().toLowerCase(), token: code.trim(), type: 'email',
-    });
+    const failed = await verifyCode(email, code);
     setBusy(false);
-    if (error) setError(error.message);
+    if (failed) setError(failed);
     else window.location.href = '/';
   }
 

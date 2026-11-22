@@ -46,13 +46,15 @@ export default function BookingFields({ students, groups = [], preselect, labels
   const [days, setDays] = useState<Record<number, Day>>({});
   const [from, setFrom] = useState(todayKyiv);
   const left = who.startsWith('s:') ? students.find((s) => `s:${s.id}` === who)?.left ?? null : null;
-  const [count, setCount] = useState<number>(left && left > 0 ? left : 4);
+  const [count, setCount] = useState<number>(left && left > 0 ? Math.max(1, Math.floor(left)) : 4);
   const [touched, setTouched] = useState(false);
 
   const loc = locale === 'uk' ? 'uk-UA' : 'en-GB';
   const dayName = (wd: number) => new Intl.DateTimeFormat(loc, { weekday: 'short', timeZone: 'UTC' })
     .format(new Date(Date.UTC(2026, 10, 15 + (wd === 0 ? 7 : wd)))); // 16 Nov 2026 is a Monday
   const slots = useMemo(() => slotsFor(days, from, Math.min(MAX, Math.max(1, count || 1))), [days, from, count]);
+  // a package counts hours: 90 minutes use 1.5
+  const units = slots.reduce((n, s) => n + Number(s.split('|')[1] || 60) / 60, 0);
   const fmt = (s: string) => {
     const [when, min] = s.split('|');
     const [d, time] = when.split('T');
@@ -75,7 +77,7 @@ export default function BookingFields({ students, groups = [], preselect, labels
         <select name="who" required value={who} onChange={(e) => {
           setWho(e.target.value);
           const l = e.target.value.startsWith('s:') ? students.find((s) => `s:${s.id}` === e.target.value)?.left : null;
-          if (!touched) setCount(l && l > 0 ? l : 4);
+          if (!touched) setCount(l && l > 0 ? Math.max(1, Math.floor(l)) : 4);
         }}>
           <option value="" disabled>…</option>
           {students.map((s) => <option key={s.id} value={`s:${s.id}`}>{s.name}{s.level ? ` · ${s.level}` : ''}</option>)}
@@ -130,8 +132,8 @@ export default function BookingFields({ students, groups = [], preselect, labels
             </label>
           </div>
           {left != null && (
-            <small className={count > left ? 'book-warn' : 'muted'}>
-              {(count > left ? labels.over : labels.left).replace('{n}', String(left))}
+            <small className={units > left ? 'book-warn' : 'muted'}>
+              {(units > left ? labels.over : labels.left).replace('{n}', String(left))}
             </small>
           )}
           {slots.length ? (

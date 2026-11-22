@@ -115,7 +115,7 @@ test('teacher sees only own students', async () => {
 
 test('teacher sees how many lessons are left but not what the student paid', async () => {
   const usage = await rows(ids.nadiia, 'select lessons_left from public.package_usage');
-  assert.deepEqual(usage.map((u) => u.lessons_left), [4]);
+  assert.deepEqual(usage.map((u) => Number(u.lessons_left)), [4]);
   assert.equal((await rows(ids.nadiia, 'select * from public.student_payments')).length, 0);
 });
 
@@ -144,7 +144,7 @@ test('marking a lesson done pays the B1 rate and uses a package seat', async () 
   const [pay] = await rows(ids.nadiia, 'select amount from public.lesson_pay where lesson_id = $1', [l.id]);
   assert.equal(Number(pay.amount), 420);
   const [u] = await rows(ids.nadiia, 'select lessons_used from public.package_usage where package_id = $1', [ids.linaPkg]);
-  assert.equal(u.lessons_used, 1);
+  assert.equal(Number(u.lessons_used), 1);
   ids.firstLesson = l.id;
 });
 
@@ -160,7 +160,7 @@ test('undoing "done" removes the pay and frees the seat', async () => {
   await rows(ids.nadiia, `update public.lessons set status = 'scheduled' where id = $1`, [ids.firstLesson]);
   assert.equal((await rows(ids.owner, 'select * from public.lesson_pay where lesson_id = $1', [ids.firstLesson])).length, 0);
   const [u] = await rows(ids.owner, 'select lessons_used from public.package_usage where package_id = $1', [ids.linaPkg]);
-  assert.equal(u.lessons_used, 0);
+  assert.equal(Number(u.lessons_used), 0);
   await rows(ids.nadiia, `update public.lessons set status = 'done' where id = $1`, [ids.firstLesson]);
 });
 
@@ -242,7 +242,7 @@ test('a no-show uses up a package lesson but adds no pay; an in-time cancellatio
   const pay = await rows(ids.owner, 'select lesson_id, amount from public.lesson_pay where lesson_id in ($1, $2)', [a.id, b.id]);
   assert.deepEqual(pay, []);
   const [u] = await rows(ids.owner, 'select lessons_used from public.package_usage where package_id = $1', [ids.linaPkg2]);
-  assert.equal(u.lessons_used, 1);
+  assert.equal(Number(u.lessons_used), 1);
   // the same lesson held after all is paid
   await rows(ids.nadiia, `update public.lessons set status = 'done' where id = $1`, [a.id]);
   const paid = await rows(ids.owner, 'select amount from public.lesson_pay where lesson_id = $1', [a.id]);
@@ -260,7 +260,7 @@ test('a late cancellation only counts inside the 24 h window', async () => {
     `insert into public.lessons (teacher_id, student_id, starts_at, status)
      values ($1, $2, now() + interval '5 hours', 'late_cancel') returning id`, [ids.nadiia, ids.lina]);
   const [u] = await rows(ids.owner, 'select lessons_used from public.package_usage where package_id = $1', [ids.linaPkg2]);
-  assert.equal(u.lessons_used, 2);
+  assert.equal(Number(u.lessons_used), 2);
   assert.equal((await rows(ids.owner, 'select 1 from public.lesson_pay where lesson_id = $1', [late.id])).length, 0);
 });
 
@@ -285,7 +285,7 @@ test('a package expires a month after the first lesson, later lessons do not use
      values ($1, $2, now() - interval '1 day', 'done') returning package_id`, [ids.toma, ostap.id]);
   assert.equal(late.package_id, null);
   const [u] = await rows(ids.manager, 'select status, lessons_left from public.package_usage where package_id = $1', [pkg.id]);
-  assert.deepEqual([u.status, u.lessons_left], ['expired', 3]);
+  assert.deepEqual([u.status, Number(u.lessons_left)], ['expired', 3]);
   const nr = await rows(ids.manager, 'select full_name from public.students_not_renewed order by full_name');
   assert.ok(nr.map((r) => r.full_name).includes('Остап'));
 });
@@ -1180,4 +1180,21 @@ test('the head teacher adds and edits packages, but not payments', async () => {
   assert.deepEqual([row.lessons_total, row.note], [12, 'mixed 60/90']);
   assert.ok(await fails(ids.agata, 'insert into public.student_payments (package_id, amount) values ($1, 100)', [p.id]));
   assert.ok(await fails(ids.nadiia, `insert into public.packages (student_id, lessons_total) values ($1, 4)`, [ids.lina]));
+});
+
+test('a package counts hours: a 90-minute lesson uses 1.5, a 60-minute one 1', async () => {
+  const [stu] = await rows(ids.owner,
+    `insert into public.students (full_name, teacher_id, level) values ('Hours', $1, 'A2') returning id`, [ids.nadiia]);
+  const [p] = await rows(ids.owner, `insert into public.packages (student_id, lessons_total) values ($1, 3) returning id`, [stu.id]);
+  await rows(ids.nadiia,
+    `insert into public.lessons (teacher_id, student_id, starts_at, duration_min, status)
+     values ($1, $2, now() - interval '3 days', 90, 'done'), ($1, $2, now() - interval '2 days', 60, 'done')`,
+    [ids.nadiia, stu.id]);
+  const [u] = await rows(ids.owner, 'select lessons_used, lessons_left, status from public.package_usage where package_id = $1', [p.id]);
+  assert.deepEqual([Number(u.lessons_used), Number(u.lessons_left), u.status], [2.5, 0.5, 'active']);
+  await rows(ids.nadiia,
+    `insert into public.lessons (teacher_id, student_id, starts_at, duration_min, status) values ($1, $2, now() - interval '1 day', 60, 'done')`,
+    [ids.nadiia, stu.id]);
+  const [u2] = await rows(ids.owner, 'select lessons_used, status from public.package_usage where package_id = $1', [p.id]);
+  assert.deepEqual([Number(u2.lessons_used), u2.status], [3.5, 'finished']);
 });

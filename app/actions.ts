@@ -11,17 +11,6 @@ export async function signOut() {
   redirect('/login');
 }
 
-// A password lets people sign in without a code in their email each time.
-export async function setPassword(formData: FormData) {
-  const password = String(formData.get('password') ?? '');
-  const repeat = String(formData.get('repeat') ?? '');
-  if (password.length < 8) redirect('/settings?e=' + encodeURIComponent('PW_SHORT'));
-  if (password !== repeat) redirect('/settings?e=' + encodeURIComponent('PW_MISMATCH'));
-  const supabase = await supabaseServer();
-  const { error } = await supabase.auth.updateUser({ password });
-  if (error) redirect('/settings?e=' + encodeURIComponent(error.message));
-  redirect('/settings?pw=1');
-}
 
 export async function saveSettings(formData: FormData) {
   const supabase = await supabaseServer();
