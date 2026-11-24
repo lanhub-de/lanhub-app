@@ -131,6 +131,14 @@ export async function addAdjustment(f: FormData) {
   done(`/school/payouts?month=${month}`, error?.message);
 }
 
+// Removes a one-off extra line (a manual one or a renewal bonus).
+export async function deleteAdjustment(f: FormData) {
+  const month = str(f, 'month');
+  const supabase = await supabaseServer();
+  const { error } = await supabase.from('payout_adjustments').delete().eq('id', str(f, 'id')).is('allowance_id', null);
+  done(`/school/payouts?month=${month}&open=${str(f, 'teacher_id')}`, error?.message);
+}
+
 export async function setPayoutStatus(f: FormData) {
   const month = str(f, 'month');
   const supabase = await supabaseServer();

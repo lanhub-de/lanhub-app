@@ -2,7 +2,7 @@ import Shell, { Flash } from '@/components/Shell';
 import { requireProfile } from '@/lib/session';
 import { currentMonthStart, fmtDateTime, fmtMoney, fmtMonth } from '@/lib/i18n';
 import { syncAllowances } from '@/lib/allowances';
-import { addAdjustment, setPayoutStatus } from '../actions';
+import { addAdjustment, deleteAdjustment, setPayoutStatus } from '../actions';
 import Submit from '@/components/Submit';
 
 type PayLine = {
@@ -23,7 +23,7 @@ export default async function PayoutsPage({
     supabase.from('lesson_pay')
       .select('amount, currency, teacher_id, lessons(starts_at, kind, status, students!lessons_student_id_fkey(full_name, level), groups!lessons_group_id_fkey(name))')
       .eq('month', month).returns<PayLine[]>(),
-    supabase.from('payout_adjustments').select('teacher_id, description, amount, currency').eq('month', month),
+    supabase.from('payout_adjustments').select('id, teacher_id, description, amount, currency, allowance_id').eq('month', month),
     supabase.from('profiles').select('id, full_name').in('role', ['teacher', 'head_teacher', 'owner']).order('full_name'),
   ]);
 
@@ -76,9 +76,20 @@ export default async function PayoutsPage({
                         <td className="num">{fmtMoney(l.amount, l.currency)}</td>
                       </tr>
                     ))}
-                    {extra.map((a, i) => (
-                      <tr key={`x${i}`}>
-                        <td colSpan={3}>{a.description}</td>
+                    {extra.map((a) => (
+                      <tr key={a.id}>
+                        <td colSpan={2}>{a.description}</td>
+                        <td>
+                          {/* a monthly extra comes back by itself: it is stopped on the Team page */}
+                          {!a.allowance_id && r.review_status !== 'paid' && (
+                            <form action={deleteAdjustment}>
+                              <input type="hidden" name="id" value={a.id} />
+                              <input type="hidden" name="month" value={month} />
+                              <input type="hidden" name="teacher_id" value={r.teacher_id} />
+                              <Submit className="small">{t('remove')}</Submit>
+                            </form>
+                          )}
+                        </td>
                         <td className="num">{fmtMoney(a.amount, a.currency)}</td>
                       </tr>
                     ))}

@@ -1211,3 +1211,99 @@ test('nobody marks a future lesson held; the head teacher can delete a wrong les
   await rows(ids.agata, 'delete from public.lessons where id = $1', [byNadiia.id]);
   assert.equal((await rows(ids.owner, 'select 1 from public.lessons where id = $1', [byNadiia.id])).length, 0);
 });
+
+test('renewal bonus: the next package of a student she taught adds a line for the teacher; a first package does not', async () => {
+  const { rows: [{ m, next }] } = await db.query(
+    `select date_trunc('month', now() at time zone 'Europe/Kyiv')::date::text as m,
+            (date_trunc('month', now() at time zone 'Europe/Kyiv') + interval '1 month')::date::text as next`);
+  await rows(ids.owner,
+    `insert into public.renewal_bonus_rules (teacher_id, market, min_lessons, amount, valid_from) values
+       ($1, 'intl', 4, 250, '2026-01-01'), ($1, 'intl', 8, 500, '2026-01-01'), ($1, 'intl', 12, 800, '2026-01-01')`, [ids.toma]);
+  assert.ok(await fails(ids.toma,
+    `insert into public.renewal_bonus_rules (teacher_id, min_lessons, amount) values ($1, 4, 9000)`, [ids.toma]));
+  assert.equal((await rows(ids.toma, 'select 1 from public.renewal_bonus_rules')).length, 3);
+  assert.equal((await rows(ids.nadiia, 'select 1 from public.renewal_bonus_rules')).length, 0);
+
+  const [stu] = await rows(ids.owner,
+    `insert into public.students (full_name, teacher_id, level, market) values ('Renee', $1, 'A2', 'intl') returning id`, [ids.toma]);
+  const lines = () => rows(ids.owner,
+    `select a.id, a.amount, a.month::text as month, a.description, a.teacher_id from public.payout_adjustments a
+       join public.packages p on p.id = a.package_id where p.student_id = $1 order by a.created_at`, [stu.id]);
+  const pack = async (n) => (await rows(ids.manager,
+    `insert into public.packages (student_id, lessons_total) values ($1, $2) returning id`, [stu.id, n]))[0].id;
+
+  // the first package is not a renewal
+  await pack(8);
+  assert.equal((await lines()).length, 0);
+  // the next one, after lessons with her, is
+  await rows(ids.toma,
+    `insert into public.lessons (teacher_id, student_id, starts_at, status) values ($1, $2, now() - interval '2 days', 'done')`,
+    [ids.toma, stu.id]);
+  const p2 = await pack(8);
+  let got = await lines();
+  assert.deepEqual([got.length, Number(got[0].amount), got[0].month, got[0].teacher_id], [1, 500, m, ids.toma]);
+  assert.match(got[0].description, /Renee/);
+  assert.equal((await rows(ids.toma, 'select 1 from public.payout_adjustments where package_id = $1', [p2])).length, 1);
+
+  // the line follows the package size, and goes when the package is cancelled
+  await rows(ids.agata, 'update public.packages set lessons_total = 12 where id = $1', [p2]);
+  got = await lines();
+  assert.deepEqual([got.length, Number(got[0].amount)], [1, 800]);
+  await rows(ids.manager, `update public.packages set status = 'cancelled' where id = $1`, [p2]);
+  assert.equal((await lines()).length, 0);
+
+  // the owner removes a line and it stays removed
+  const p3 = await pack(4);
+  got = await lines();
+  assert.deepEqual([got.length, Number(got[0].amount)], [1, 250]);
+  await rows(ids.owner, 'delete from public.payout_adjustments where id = $1', [got[0].id]);
+  await rows(ids.manager, 'update public.packages set lessons_total = 12 where id = $1', [p3]);
+  assert.equal((await lines()).length, 0);
+
+  // a package smaller than the first step earns nothing
+  await pack(2);
+  assert.equal((await lines()).length, 0);
+
+  // a month already paid out is left alone: the bonus moves to the next one
+  await rows(ids.owner, `insert into public.payout_reviews (teacher_id, month, status) values ($1, $2, 'paid')`, [ids.toma, m]);
+  await pack(12);
+  got = await lines();
+  assert.deepEqual([got.length, Number(got[0].amount), got[0].month], [1, 800, next]);
+  await rows(ids.owner, 'delete from public.payout_reviews where teacher_id = $1 and month = $2', [ids.toma, m]);
+});
+
+test('renewal bonus: only for the market in the rule and only for a teacher who has taught the student', async () => {
+  const count = async (sid) => (await rows(ids.owner,
+    `select 1 from public.payout_adjustments a join public.packages p on p.id = a.package_id where p.student_id = $1`, [sid])).length;
+
+  // a Ukrainian student of the same teacher: the rule is for international ones
+  const [ua] = await rows(ids.owner,
+    `insert into public.students (full_name, teacher_id, level, market) values ('Olha', $1, 'A2', 'ua') returning id`, [ids.toma]);
+  await rows(ids.owner, 'insert into public.packages (student_id, lessons_total) values ($1, 8)', [ua.id]);
+  await rows(ids.toma,
+    `insert into public.lessons (teacher_id, student_id, starts_at, status) values ($1, $2, now() - interval '2 days', 'done')`,
+    [ids.toma, ua.id]);
+  await rows(ids.owner, 'insert into public.packages (student_id, lessons_total) values ($1, 8)', [ua.id]);
+  assert.equal(await count(ua.id), 0);
+
+  // a student who has just moved to her from another teacher: not her renewal yet
+  const [moved] = await rows(ids.owner,
+    `insert into public.students (full_name, teacher_id, level, market) values ('Moved', $1, 'A2', 'intl') returning id`, [ids.nadiia]);
+  await rows(ids.owner, 'insert into public.packages (student_id, lessons_total) values ($1, 8)', [moved.id]);
+  await rows(ids.nadiia,
+    `insert into public.lessons (teacher_id, student_id, starts_at, status) values ($1, $2, now() - interval '2 days', 'done')`,
+    [ids.nadiia, moved.id]);
+  await rows(ids.owner, 'update public.students set teacher_id = $2 where id = $1', [moved.id, ids.toma]);
+  await rows(ids.owner, 'insert into public.packages (student_id, lessons_total) values ($1, 8)', [moved.id]);
+  assert.equal(await count(moved.id), 0);
+
+  // a teacher without a rule gets nothing
+  const [plain] = await rows(ids.owner,
+    `insert into public.students (full_name, teacher_id, level, market) values ('Plain', $1, 'A2', 'intl') returning id`, [ids.nadiia]);
+  await rows(ids.owner, 'insert into public.packages (student_id, lessons_total) values ($1, 8)', [plain.id]);
+  await rows(ids.nadiia,
+    `insert into public.lessons (teacher_id, student_id, starts_at, status) values ($1, $2, now() - interval '2 days', 'done')`,
+    [ids.nadiia, plain.id]);
+  await rows(ids.owner, 'insert into public.packages (student_id, lessons_total) values ($1, 8)', [plain.id]);
+  assert.equal(await count(plain.id), 0);
+});
