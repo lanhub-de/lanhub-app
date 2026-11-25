@@ -112,7 +112,8 @@ revoke execute on function public.lessons_before_write() from public, anon, auth
 create or replace function public.guard_lesson_move() returns trigger
 language plpgsql security definer set search_path = public as $$
 begin
-  if public.has_role('owner', 'head_teacher', 'manager') then return new; end if;
+  -- these limits are for teachers; the school (and the system itself) fixes the journal freely
+  if public.has_role('owner', 'head_teacher', 'manager') or auth.uid() is null then return new; end if;
   if (new.starts_at is distinct from old.starts_at or new.duration_min is distinct from old.duration_min)
      and (old.status not in ('scheduled', 'rescheduled') or new.status <> 'scheduled') then
     raise exception 'Only a lesson that is not marked yet can be moved or changed' using errcode = 'P0001';
