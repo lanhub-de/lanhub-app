@@ -7,7 +7,7 @@ import { INVITE, pendingTeachers } from '@/lib/invites';
 import { splitStudentName } from '@/lib/names';
 import { addMember, archiveGroup, continueGroup, removeMember, updateGroup } from '../actions';
 import GroupLessonCard from '@/components/GroupLessonCard';
-import { LESSON_SELECT, type LessonDb } from '@/lib/lessons';
+import { LESSON_SELECT, teacherPastRule, type LessonDb } from '@/lib/lessons';
 import Submit from '@/components/Submit';
 import ScheduleLesson from '@/components/ScheduleLesson';
 
@@ -133,7 +133,7 @@ export default async function GroupPage({ params, searchParams }: {
                 groups={[{ id: g.id, name: g.name, tz: g.tz, days: g.days, time: g.start_time, minutes: program.data?.lesson_minutes ?? 90 }]}
                 preselect={`g:${g.id}`}
                 teacherId={staff && g.teacher_id && !g.pending_teacher ? g.teacher_id : undefined}
-                pending={staff ? g.pending_teacher : null} />
+                pending={staff ? g.pending_teacher : null} pastRule={teacherPastRule(profile.role)} />
             </div>
           )}
           {openLesson && (

@@ -51,6 +51,16 @@ export function canDeleteBooking(l: Pick<LessonDb, 'status' | 'starts_at' | 'cre
   return new Date(l.starts_at).getTime() > now && now - new Date(l.created_at).getTime() < 24 * 3600e3;
 }
 
+// A lesson is planned first and held afterwards: from this day (Kyiv) a
+// teacher books lessons for today and ahead, and an earlier day is entered by
+// the school. The database enforces it; the forms only explain and guide.
+export const TEACHER_NO_PAST_FROM = '2026-12-01';
+export function teacherPastRule(role: string, now = new Date()): 'on' | 'soon' | undefined {
+  if (role !== 'teacher') return undefined;
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Kyiv', year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
+  return today >= TEACHER_NO_PAST_FROM ? 'on' : 'soon';
+}
+
 // pendingLabel marks a lesson that waits for an invited teacher.
 export function toView(l: LessonDb, withTeacher = false, pendingLabel = ''): LessonView {
   return {

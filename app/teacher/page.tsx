@@ -7,7 +7,7 @@ import ScheduleLesson from '@/components/ScheduleLesson';
 import { requireProfile, TEACHING } from '@/lib/session';
 import { currentMonthStart, fmtDate, fmtDateTime, fmtMoney, fmtMonth, kyivLocalToIso, SCHOOL_TZ } from '@/lib/i18n';
 import { openChat } from '@/app/chat/actions';
-import { LESSON_SELECT as select, type LessonDb } from '@/lib/lessons';
+import { LESSON_SELECT as select, teacherPastRule, type LessonDb } from '@/lib/lessons';
 import { asParam, CabinetSwitch, onlyTheirs, whoseCabinet } from '@/lib/cabinet';
 import Submit from '@/components/Submit';
 import DiagnosticForm from '@/components/DiagnosticForm';
@@ -160,7 +160,7 @@ export default async function TeacherPage({ searchParams }: { searchParams: Prom
                 students={myStudents.map((s) => ({ id: s.id, name: s.full_name, level: s.level, left: pkgByStudent.get(s.id)?.lessons_left ?? null }))}
                 groups={(groups.data ?? []).map((g) => ({ id: g.id, name: g.name, tz: g.tz, days: g.days, time: g.start_time }))}
                 teacherId={who.viewing && !who.pending ? who.id : undefined}
-                pending={who.pending}
+                pending={who.pending} pastRule={teacherPastRule(profile.role)}
                 school={profile.role === 'owner' || profile.role === 'head_teacher'} />
             </span>
           </div>

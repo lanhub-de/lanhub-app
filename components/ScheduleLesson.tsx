@@ -19,10 +19,11 @@ export function bookingLabels(t: T): BookingLabels {
 // lessons as the package has left. The school can also book trials and
 // diagnostics, and lessons for an invited teacher who has not signed in yet.
 export default function ScheduleLesson({
-  t, locale, returnTo, students, groups = [], preselect, teacherId, pending, school, align = 'right', label,
+  t, locale, returnTo, students, groups = [], preselect, teacherId, pending, school, align = 'right', label, pastRule,
 }: {
   t: T; locale: Locale; returnTo: string; students: Pick[]; groups?: BookingGroup[]; preselect?: string;
   teacherId?: string; pending?: string | null; school?: boolean; align?: 'left' | 'right'; label?: string;
+  pastRule?: 'on' | 'soon'; // for a teacher: lessons for today and ahead only (announced before it starts)
 }) {
   if (!students.length && !groups.length) return null;
   return (
@@ -34,6 +35,7 @@ export default function ScheduleLesson({
         {teacherId && <input type="hidden" name="teacher_id" value={teacherId} />}
         {pending && <input type="hidden" name="pending" value={pending} />}
         <BookingFields students={students} groups={groups} preselect={preselect} labels={bookingLabels(t)} locale={locale}
+          noPast={pastRule === 'on'}
           kinds={school && students.length ? {
             label: t('lessonKind'),
             options: ['individual', 'trial', 'diagnostic'].map((k) => ({ value: k, label: t(`kind_${k}` as never) })),
@@ -44,6 +46,7 @@ export default function ScheduleLesson({
         </label>
         <Submit className="primary">{t('scheduleSave')}</Submit>
         <small className="muted">{t(students.length ? 'scheduleHint' : 'scheduleHintGroup')}</small>
+        {pastRule && <small className="muted">{t(pastRule === 'on' ? 'noPastOn' : 'noPastSoon')}</small>}
       </form>
     </details>
   );

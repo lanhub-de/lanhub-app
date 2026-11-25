@@ -51,9 +51,10 @@ function groupDays(g: BookingGroup | null | undefined): Record<number, Day> {
 // own time) for as many lessons as the package has left. The dates to be
 // booked are listed before saving. A group is booked on its own clock (Vienna
 // for the international flows), 90 minutes by default, on its usual days.
-export default function BookingFields({ students, groups = [], preselect, labels, locale, kinds }: {
+export default function BookingFields({ students, groups = [], preselect, labels, locale, kinds, noPast = false }: {
   students: BookingWho[]; groups?: BookingGroup[]; preselect?: string;
   labels: BookingLabels; locale: 'uk' | 'en'; kinds?: BookingKinds;
+  noPast?: boolean; // a teacher books for today and ahead
 }) {
   const groupOf = (value: string) => (value.startsWith('g:') ? groups.find((g) => `g:${g.id}` === value) ?? null : null);
   const [who, setWho] = useState(preselect ?? '');
@@ -132,7 +133,7 @@ export default function BookingFields({ students, groups = [], preselect, labels
 
       {mode === 'once' ? (
         <div className="schedule-two">
-          <label>{whenLabel}<input type="datetime-local" name="slot" required /></label>
+          <label>{whenLabel}<input type="datetime-local" name="slot" required min={noPast ? `${todayKyiv()}T00:00` : undefined} /></label>
           <label>
             {labels.duration}
             <select name="duration_min" value={onceMin} onChange={(e) => setOnceMin(Number(e.target.value))}>
@@ -164,7 +165,7 @@ export default function BookingFields({ students, groups = [], preselect, labels
             ))}
           </div>
           <div className="schedule-two">
-            <label>{labels.from}<input type="date" value={from} required onChange={(e) => setFrom(e.target.value)} /></label>
+            <label>{labels.from}<input type="date" value={from} required min={noPast ? todayKyiv() : undefined} onChange={(e) => setFrom(e.target.value)} /></label>
             <label>
               {labels.count}
               <input type="number" min={1} max={MAX} value={count} required

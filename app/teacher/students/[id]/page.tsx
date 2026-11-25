@@ -1,3 +1,4 @@
+import { teacherPastRule } from '@/lib/lessons';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import Shell from '@/components/Shell';
@@ -67,7 +68,7 @@ export default async function StudentFolder({
         </div>
         <div className="row">
           <ScheduleLesson t={t} locale={profile.locale} returnTo={here} students={[{ id: s.id, name: s.full_name, level: s.level, left: p?.lessons_left ?? null }]} preselect={`s:${s.id}`}
-            teacherId={who.viewing && !who.pending ? who.id : undefined} pending={who.pending}
+            teacherId={who.viewing && !who.pending ? who.id : undefined} pending={who.pending} pastRule={teacherPastRule(profile.role)}
             school={profile.role === 'owner' || profile.role === 'head_teacher'} />
           <Link href={`/students/${s.id}/preview`} className="btn">👁 {t('viewAsStudent')}</Link>
           {s.zoom_url && <a href={s.zoom_url} target="_blank" rel="noreferrer" className="btn">🎥 Zoom</a>}

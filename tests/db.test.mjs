@@ -66,6 +66,9 @@ before(async () => {
     await db.exec(readFileSync(`supabase/migrations/${f}`, 'utf8'));
   }
 
+  // the "no lessons in the past for teachers" rule starts on a set day; each test that needs it turns it on
+  await db.query(`delete from private.settings where key = 'teacher_no_past_from'`);
+
   await person('owner', 'Юліанна', 'owner');
   await person('agata', 'Агата', 'head_teacher');
   await person('manager', 'Анастасія', 'manager');
@@ -1408,4 +1411,40 @@ test('a diagnostic is booked by the school, never by the teacher, and pays the f
   assert.equal(Number(await shown(ids.owner)), 400);
   assert.equal(await shown(ids.manager), null);
   assert.equal(await shown(ids.toma), null);
+});
+
+test('from the set day a teacher books lessons for today and ahead; a day already past is entered by the school', async () => {
+  const past = `insert into public.lessons (teacher_id, student_id, starts_at) values ($1, $2, now() - interval '2 days') returning id`;
+  const setDay = (d) => db.query(
+    `insert into private.settings (key, value) values ('teacher_no_past_from', $1) on conflict (key) do update set value = excluded.value`, [d]);
+  // before the set day nothing changes
+  await setDay('2099-01-01');
+  await rows(ids.nadiia, past, [ids.nadiia, ids.lina]);
+
+  await setDay('2026-01-01');
+  try {
+    assert.match(await fails(ids.nadiia, past, [ids.nadiia, ids.lina]), /added by the school/);
+    // today (even an hour that has passed) and any day ahead are fine
+    await rows(ids.nadiia,
+      `insert into public.lessons (teacher_id, student_id, starts_at) values ($1, $2, public.kyiv_day_start())`, [ids.nadiia, ids.lina]);
+    const [ahead] = await rows(ids.nadiia,
+      `insert into public.lessons (teacher_id, student_id, starts_at) values ($1, $2, now() + interval '2 days') returning id`, [ids.nadiia, ids.lina]);
+    // the school still enters a past day: the manager, the head teacher
+    const [old] = await rows(ids.manager,
+      `insert into public.lessons (teacher_id, student_id, starts_at) values ($1, $2, public.kyiv_day_start() - interval '14 hours') returning id`,
+      [ids.nadiia, ids.lina]);
+    await rows(ids.agata, past, [ids.nadiia, ids.lina]);
+
+    // the same for moves: not to another day that is already past
+    assert.match(await fails(ids.nadiia,
+      `update public.lessons set starts_at = now() - interval '3 days' where id = $1`, [ahead.id]), /added by the school/);
+    // an unmarked lesson of yesterday: the time is fixed within its own day, it moves ahead, but not further back
+    await rows(ids.nadiia, `update public.lessons set starts_at = starts_at + interval '2 hours' where id = $1`, [old.id]);
+    assert.match(await fails(ids.nadiia,
+      `update public.lessons set starts_at = starts_at - interval '3 days' where id = $1`, [old.id]), /added by the school/);
+    await rows(ids.nadiia, `update public.lessons set starts_at = now() + interval '1 day' where id = $1`, [old.id]);
+    await rows(ids.manager, `update public.lessons set starts_at = now() - interval '5 days' where id = $1`, [old.id]);
+  } finally {
+    await db.query(`delete from private.settings where key = 'teacher_no_past_from'`);
+  }
 });
