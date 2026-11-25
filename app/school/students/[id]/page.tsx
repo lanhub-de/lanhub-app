@@ -61,7 +61,7 @@ export default async function StudentPage({
           <h2>{t('packages')}</h2>
           {pkgs.length === 0 && <p className="muted">{t('noPackage')}</p>}
           {/* the package is over: is she continuing? */}
-          {(s.status !== 'active' || (pkgs.length > 0 && !pkgs.some((p) => p.status === 'active'))) && (
+          {(s.status !== 'active' || (pkgs.length > 0 && !pkgs.some((p) => p.status === 'active' || p.status === 'expired'))) && (
             <div className="attention">
               <strong>{s.status === 'active' ? t('packageOverTitle') : t('studentIs', { status: t(`stu_${s.status}` as never) })}</strong>
               {s.status === 'active' && <span>{t('packageOverHint')}</span>}
@@ -82,7 +82,8 @@ export default async function StudentPage({
                 <strong>{t('used', { used: p.lessons_used, total: p.lessons_total })}</strong>
                 <span className={`pill ${p.status === 'active' ? 'ok' : 'warn'}`}>{t(`pkg_${p.status}` as never)}</span>
               </div>
-              {p.valid_until && <span className="muted">{t('validUntil', { date: fmtDate(p.valid_until, profile.locale) })}</span>}
+              {p.valid_until && <span className="muted">{t(p.status === 'expired' ? 'pkgMonthOver' : 'validUntil', { date: fmtDate(p.valid_until, profile.locale) })}</span>}
+              {p.status === 'expired' && <span className="muted">{t('pkgSpeedUp')}</span>}
               {(paysByPkg.get(p.package_id) ?? []).map((pay, i) => (
                 <span key={i} className="muted">
                   {fmtMoney(pay.amount, pay.currency)}{pay.method ? ` · ${pay.method}` : ''} · {fmtDate(pay.paid_at, profile.locale)}

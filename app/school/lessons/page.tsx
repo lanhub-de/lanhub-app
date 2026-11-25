@@ -2,7 +2,7 @@ import Shell, { Flash } from '@/components/Shell';
 import LessonRow from '@/components/LessonRow';
 import { requireProfile, STAFF } from '@/lib/session';
 import { currentMonthStart, fmtMonth } from '@/lib/i18n';
-import { LESSON_SELECT, toView, type LessonDb } from '@/lib/lessons';
+import { LESSON_SELECT, packagesByStudent, toView, type LessonDb } from '@/lib/lessons';
 import { addLesson } from '@/app/teacher/actions';
 import Submit from '@/components/Submit';
 import DiagnosticForm from '@/components/DiagnosticForm';
@@ -32,9 +32,9 @@ export default async function LessonsPage({
     supabase.from('profiles').select('id, full_name').in('role', ['teacher', 'head_teacher', 'owner']).eq('active', true).order('full_name'),
     supabase.from('students').select('id, full_name, level').eq('status', 'active').order('full_name'),
     supabase.from('groups').select('id, name, tz, days, start_time').eq('active', true).order('name'),
-    supabase.from('package_usage').select('student_id, lessons_left').eq('status', 'active'),
+    supabase.from('package_usage').select('student_id, lessons_left, status').in('status', ['active', 'expired']),
   ]);
-  const leftOf = new Map((packages.data ?? []).map((p) => [p.student_id as string, p.lessons_left as number]));
+  const leftOf = new Map([...packagesByStudent(packages.data as { student_id: string; status: string; lessons_left: number }[] | null)].map(([id, p]) => [id, p.lessons_left]));
 
   const months: string[] = [];
   const now = new Date(currentMonthStart() + 'T00:00:00Z');

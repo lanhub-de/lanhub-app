@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import Shell, { Flash } from '@/components/Shell';
 import { requireProfile, STAFF } from '@/lib/session';
+import { packagesByStudent } from '@/lib/lessons';
 import { addGroup, addStudent } from '../actions';
 import { INVITE, pendingTeachers } from '@/lib/invites';
 import Submit from '@/components/Submit';
@@ -20,8 +21,8 @@ export default async function StudentsPage({ searchParams }: { searchParams: Pro
   const whoTeaches = (x: { teacher_id: string | null; pending_teacher: string | null }) => x.pending_teacher
     ? `${invitedName.get(x.pending_teacher) ?? x.pending_teacher} · ${t('pending')}`
     : x.teacher_id ? teacherName.get(x.teacher_id) ?? '' : '';
-  const active = new Map<string, number>();
-  for (const p of packages.data ?? []) if (p.status === 'active') active.set(p.student_id, p.lessons_left);
+  // the package her next lesson counts from (one past its month still counts)
+  const active = packagesByStudent((packages.data ?? []).filter((p) => p.status === 'active' || p.status === 'expired'));
   const q = (sp.q ?? '').toLowerCase();
   const list = (students.data ?? []).filter((s) => !q || s.full_name.toLowerCase().includes(q));
 
@@ -72,7 +73,9 @@ export default async function StudentsPage({ searchParams }: { searchParams: Pro
                 <td>{t(s.market === 'intl' ? 'market_intl' : 'market_ua')}</td>
                 <td className="num">
                   {active.has(s.id)
-                    ? <span className={`pill ${active.get(s.id)! <= 2 ? 'warn' : ''}`}>{t('lessonsLeft', { n: active.get(s.id)! })}</span>
+                    ? <span className={`pill ${active.get(s.id)!.lessons_left <= 2 || active.get(s.id)!.status === 'expired' ? 'warn' : ''}`}>
+                        {t('lessonsLeft', { n: active.get(s.id)!.lessons_left })}{active.get(s.id)!.status === 'expired' ? ` · ${t('pkg_expired')}` : ''}
+                      </span>
                     : s.status !== 'active' ? <span className="muted">—</span>
                       : <span className="pill warn">{t('noPackage')}</span>}
                 </td>

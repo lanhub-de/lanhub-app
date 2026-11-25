@@ -1,4 +1,4 @@
-import { teacherPastRule } from '@/lib/lessons';
+import { packageNow, teacherPastRule } from '@/lib/lessons';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import Shell from '@/components/Shell';
@@ -37,7 +37,7 @@ export default async function StudentFolder({
   const [lessonsRes, notesRes, pkg] = await Promise.all([
     who.pending ? lessonsQ.eq('pending_teacher', who.pending) : lessonsQ.eq('teacher_id', who.id),
     supabase.from('student_notes').select('notes').eq('student_id', id).maybeSingle(),
-    supabase.from('package_usage').select('lessons_total, lessons_used, lessons_left, valid_until, status').eq('student_id', id).eq('status', 'active').maybeSingle(),
+    supabase.from('package_usage').select('lessons_total, lessons_used, lessons_left, valid_until, status').eq('student_id', id).in('status', ['active', 'expired']),
   ]);
   const lessons = (lessonsRes.data ?? []) as L[];
   const ids = lessons.map((l) => l.id);
@@ -56,7 +56,7 @@ export default async function StudentFolder({
     if (f.files && !materials.has(f.files.id)) materials.set(f.files.id, { ...f.files, on: lessonOf.get(f.lesson_id)?.starts_at ?? '' });
   }
   const notes = (notesRes.data as { notes: string } | null)?.notes ?? '';
-  const p = pkg.data as { lessons_total: number; lessons_used: number; lessons_left: number; valid_until: string | null } | null;
+  const p = packageNow(pkg.data as { lessons_total: number; lessons_used: number; lessons_left: number; valid_until: string | null; status: string }[] | null);
 
   return (
     <Shell profile={profile} t={t} active="/teacher">
@@ -173,7 +173,8 @@ export default async function StudentFolder({
               <>
                 <div className="big" style={{ color: 'var(--red)' }}>{t('lessonsLeft', { n: p.lessons_left })}</div>
                 <div className="muted">{t('mePackageUsed', { n: p.lessons_used, m: p.lessons_total })}</div>
-                {p.valid_until && <div className="muted">{t('validUntil', { date: fmtDate(p.valid_until, profile.locale) })}</div>}
+                {p.valid_until && <div className="muted">{t(p.status === 'expired' ? 'pkgMonthOver' : 'validUntil', { date: fmtDate(p.valid_until, profile.locale) })}</div>}
+                {p.status === 'expired' && <div className="attention" style={{ marginTop: 8 }}>{t('pkgSpeedUp')}</div>}
               </>
             ) : <p className="muted" style={{ margin: 0 }}>{t('noPackage')}</p>}
           </div>

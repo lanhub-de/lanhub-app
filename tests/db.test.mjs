@@ -275,7 +275,7 @@ test('force majeure extends the package by a week', async () => {
   assert.equal(p.extra_days, 7);
 });
 
-test('a package expires a month after the first lesson, later lessons do not use it', async () => {
+test('a package past its month still counts (students stretch it), a valid package goes first', async () => {
   const [ostap] = await rows(ids.manager,
     `insert into public.students (full_name, level, teacher_id) values ('Остап', 'B1', $1) returning id`, [ids.toma]);
   const [pkg] = await rows(ids.manager,
@@ -283,14 +283,23 @@ test('a package expires a month after the first lesson, later lessons do not use
   await rows(ids.toma,
     `insert into public.lessons (teacher_id, student_id, starts_at, status)
      values ($1, $2, now() - interval '50 days', 'done')`, [ids.toma, ostap.id]);
+  // nothing is blocked: a lesson after the month still takes its hour from the package
   const [late] = await rows(ids.toma,
     `insert into public.lessons (teacher_id, student_id, starts_at, status)
-     values ($1, $2, now() - interval '1 day', 'done') returning package_id`, [ids.toma, ostap.id]);
-  assert.equal(late.package_id, null);
+     values ($1, $2, now() - interval '2 days', 'done') returning package_id`, [ids.toma, ostap.id]);
+  assert.equal(late.package_id, pkg.id);
   const [u] = await rows(ids.manager, 'select status, lessons_left from public.package_usage where package_id = $1', [pkg.id]);
-  assert.deepEqual([u.status, Number(u.lessons_left)], ['expired', 3]);
+  assert.deepEqual([u.status, Number(u.lessons_left)], ['expired', 2]);
+  // the manager still sees the student among those to renew
   const nr = await rows(ids.manager, 'select full_name from public.students_not_renewed order by full_name');
   assert.ok(nr.map((r) => r.full_name).includes('Остап'));
+  // once a new package is bought, the valid one is used first
+  const [fresh] = await rows(ids.manager,
+    `insert into public.packages (student_id, lessons_total) values ($1, 8) returning id`, [ostap.id]);
+  const [next] = await rows(ids.toma,
+    `insert into public.lessons (teacher_id, student_id, starts_at, status)
+     values ($1, $2, now() - interval '1 day', 'done') returning package_id`, [ids.toma, ostap.id]);
+  assert.equal(next.package_id, fresh.id);
 });
 
 // --- Rate rules from the September list ----------------------------------

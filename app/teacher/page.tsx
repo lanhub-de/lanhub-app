@@ -7,7 +7,7 @@ import ScheduleLesson from '@/components/ScheduleLesson';
 import { requireProfile, TEACHING } from '@/lib/session';
 import { currentMonthStart, fmtDate, fmtDateTime, fmtMoney, fmtMonth, kyivLocalToIso, SCHOOL_TZ } from '@/lib/i18n';
 import { openChat } from '@/app/chat/actions';
-import { LESSON_SELECT as select, teacherPastRule, type LessonDb } from '@/lib/lessons';
+import { LESSON_SELECT as select, packagesByStudent, teacherPastRule, type LessonDb } from '@/lib/lessons';
 import { asParam, CabinetSwitch, onlyTheirs, whoseCabinet } from '@/lib/cabinet';
 import Submit from '@/components/Submit';
 import DiagnosticForm from '@/components/DiagnosticForm';
@@ -45,7 +45,7 @@ export default async function TeacherPage({ searchParams }: { searchParams: Prom
       .limit(8).returns<LessonDb[]>(),
     supabase.from('students').select('id, full_name, level, teacher_id, pending_teacher, schedule_note').eq('status', 'active').order('full_name'),
     theirs(supabase.from('group_overview').select('id, name, members, lessons_total, lessons_done, tz, days, start_time')).eq('active', true).order('name'),
-    supabase.from('package_usage').select('student_id, lessons_left, valid_until, status').eq('status', 'active'),
+    supabase.from('package_usage').select('student_id, lessons_left, valid_until, status').in('status', ['active', 'expired']),
     supabase.from('monthly_payouts').select('total, lessons_count, currency').eq('teacher_id', who.id).eq('month', month),
     who.pending ? Promise.resolve({ data: [] as PayLine[] })
       : supabase.from('lesson_pay')
@@ -116,7 +116,7 @@ export default async function TeacherPage({ searchParams }: { searchParams: Prom
         school={isSchool} />;
 
   const myStudents = (students.data ?? []).filter((s) => (who.pending ? s.pending_teacher === who.pending : s.teacher_id === who.id && !s.pending_teacher));
-  const pkgByStudent = new Map((packages.data ?? []).map((p) => [p.student_id, p]));
+  const pkgByStudent = packagesByStudent(packages.data);
   const payRow = pay.data?.[0];
   // this month's pay, one line per student or group: "Наталя · A2 · 3 × 450"
   const byWho = new Map<string, { n: number; sum: number; rate: Set<number> }>();
@@ -206,9 +206,10 @@ export default async function TeacherPage({ searchParams }: { searchParams: Prom
                   <div key={s.id} className="student-tile">
                     <strong>{s.full_name}</strong>
                     <span className="muted" style={{ fontSize: 13 }}>{[s.level, s.schedule_note].filter(Boolean).join(' · ')}</span>
-                    <span className={`pill ${p ? (p.lessons_left <= 2 ? 'warn' : '') : 'warn'}`} style={{ alignSelf: 'flex-start' }}>
-                      {p ? `${t('lessonsLeft', { n: p.lessons_left })}${p.valid_until ? ` · ${t('validUntil', { date: fmtDate(p.valid_until, profile.locale) })}` : ''}` : t('noPackage')}
+                    <span className={`pill ${p ? (p.lessons_left <= 2 || p.status === 'expired' ? 'warn' : '') : 'warn'}`} style={{ alignSelf: 'flex-start' }}>
+                      {p ? `${t('lessonsLeft', { n: p.lessons_left })}${p.valid_until ? ` · ${t(p.status === 'expired' ? 'pkgMonthOver' : 'validUntil', { date: fmtDate(p.valid_until, profile.locale) })}` : ''}` : t('noPackage')}
                     </span>
+                    {p?.status === 'expired' && <small className="muted">{t('pkgSpeedUp')}</small>}
                     <Link href={`/teacher/students/${s.id}${q ? `?${q}` : ''}`} className="small-link">{t('folder')}</Link>
                     {who.pending ? (
                       <span className="link-btn off" title={t('chatAfterSignIn', { name: who.name })}>{t('write')}</span>

@@ -80,3 +80,17 @@ export function toView(l: LessonDb, withTeacher = false, pendingLabel = ''): Les
 export function zoomOf(l: LessonDb, teacherZoom?: string | null) {
   return l.zoom_url ?? l.students?.zoom_url ?? l.groups?.zoom_url ?? teacherZoom ?? null;
 }
+
+// The package a student's next lesson takes its hour from: one valid now
+// first, otherwise one whose month is over but still has lessons left
+// (students stretch packages; the platform only notes it).
+export function packageNow<T extends { status: string }>(rows: T[] | null | undefined): T | null {
+  const list = rows ?? [];
+  return list.find((p) => p.status === 'active') ?? list.find((p) => p.status === 'expired') ?? null;
+}
+
+export function packagesByStudent<T extends { student_id: string; status: string }>(rows: T[] | null | undefined): Map<string, T> {
+  const by = new Map<string, T[]>();
+  for (const p of rows ?? []) by.set(p.student_id, [...(by.get(p.student_id) ?? []), p]);
+  return new Map([...by].map(([id, list]) => [id, packageNow(list)!]));
+}

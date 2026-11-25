@@ -10,6 +10,7 @@ import type { Locale, T } from '@/lib/i18n';
 import { HOMEWORK_COLUMNS, dropLabels, withFileLinks, type Homework } from '@/lib/homework';
 import { chatWith, withName } from '@/lib/names';
 import { dayMonth } from '@/lib/when';
+import { packageNow } from '@/lib/lessons';
 import BeforeTitle from '@/components/BeforeTitle';
 
 type Lesson = {
@@ -40,7 +41,7 @@ export default async function StudentHome({
     supabase.from('students').select('id, full_name, level, goodnotes_url, quizlet_url, schedule_note').eq('id', studentId).maybeSingle(),
     supabase.rpc('student_teacher', { sid: studentId }),
     supabase.rpc('student_lessons', { sid: studentId, p_from: from, p_to: to }),
-    supabase.from('package_usage').select('lessons_total, lessons_used, lessons_left, valid_until').eq('student_id', studentId).eq('status', 'active').maybeSingle(),
+    supabase.from('package_usage').select('lessons_total, lessons_used, lessons_left, valid_until, status').eq('student_id', studentId).in('status', ['active', 'expired']),
     supabase.from('conversations').select('id').eq('kind', 'direct').eq('student_id', studentId).limit(1).maybeSingle(),
   ]);
   const s = studentRes.data as { id: string; full_name: string; level: string | null; goodnotes_url: string | null; quizlet_url: string | null; schedule_note: string | null } | null;
@@ -71,7 +72,7 @@ export default async function StudentHome({
   const lastHw = lastHeld ? hwBy.get(lastHeld.id) : undefined;
   const prevChecked = held.slice(1).find((l) => hwBy.get(l.id)?.status === 'checked');
   const prevHw = prevChecked ? hwBy.get(prevChecked.id) : undefined;
-  const pkg = pkgRes.data as { lessons_total: number; lessons_used: number; lessons_left: number; valid_until: string | null } | null;
+  const pkg = packageNow(pkgRes.data as { lessons_total: number; lessons_used: number; lessons_left: number; valid_until: string | null; status: string }[] | null);
   const tName = teacher?.teacher_name ?? '';
   const first = s.full_name.split(' ')[0];
   const fileHref = (id: string) => (preview ? `/library/${id}` : `/me/files/${id}`);
@@ -249,7 +250,7 @@ export default async function StudentHome({
                 style={{ gridTemplateColumns: `repeat(${pkg.lessons_total}, minmax(0, 1fr))` }}>
                 {Array.from({ length: pkg.lessons_total }, (_, i) => <span key={i} className={i < pkg.lessons_used ? 'on' : ''} />)}
               </div>
-              {pkg.valid_until && <p className="muted" style={{ margin: '10px 0 0', fontSize: 13 }}>{t('validUntilCap', { date: dayMonth(pkg.valid_until, locale) })}</p>}
+              {pkg.valid_until && <p className="muted" style={{ margin: '10px 0 0', fontSize: 13 }}>{t(pkg.status === 'expired' ? 'pkgOverStudent' : 'validUntilCap', { date: dayMonth(pkg.valid_until, locale) })}</p>}
             </>
           ) : <p className="muted" style={{ margin: '8px 0 0', fontSize: 14 }}>{t('noPackageStudent')}</p>}
           {preview ? <span className="s-outline">{t('renewPackage')}</span> : <Link href="/chat" className="s-outline">{t('renewPackage')}</Link>}
