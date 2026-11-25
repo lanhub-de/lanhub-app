@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { supabaseServer } from '@/lib/supabase/server';
 import { parseTeacherChoice } from '@/lib/invites';
+import { GROUP_TZS, localToIso } from '@/lib/i18n';
 
 const str = (f: FormData, k: string) => String(f.get(k) ?? '').trim();
 const optional = (f: FormData, k: string) => str(f, k) || null;
@@ -95,6 +96,8 @@ export async function createGroup(f: FormData) {
   const days = f.getAll('days').map(Number).filter((d) => d >= 1 && d <= 7);
   if (!days.length) go('/school/groups', 'Choose the days');
   const who = parseTeacherChoice(str(f, 'teacher_id'));
+  const tz = GROUP_TZS.includes(str(f, 'tz')) ? str(f, 'tz') : 'Europe/Vienna';
+  if (!str(f, 'program_id')) return createPlainGroup(f, days, who, tz);
   const common = {
     p_program: str(f, 'program_id'),
     p_days: days,
@@ -103,6 +106,7 @@ export async function createGroup(f: FormData) {
     p_capacity: Number(str(f, 'capacity') || 10),
     p_zoom: optional(f, 'zoom_url'),
     p_name: optional(f, 'name'),
+    p_tz: tz,
   };
   // an invited teacher who has not signed in yet gets the group on her first sign-in
   const { data, error } = who.invite
@@ -110,6 +114,47 @@ export async function createGroup(f: FormData) {
     : await supabase.rpc('create_group', { ...common, p_teacher: who.teacher });
   if (error) go('/school/groups', error.message);
   go(`/groups/${data}`);
+}
+
+// A group without a program (a new flow whose program is not written yet, a
+// club, a pair): a name, a timetable and as many lessons as asked, on the
+// group's days from the start date. The teacher fills in each lesson's topic.
+async function createPlainGroup(f: FormData, days: number[], who: { teacher?: string; invite?: string }, tz: string): Promise<never> {
+  const supabase = await supabaseServer();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect('/login');
+  const name = str(f, 'name');
+  if (!name) go('/school/groups', 'Give the group a name (or choose a program)');
+  const time = str(f, 'time').slice(0, 5);
+  const start = str(f, 'start');
+  if (!/^\d{2}:\d{2}$/.test(time) || !/^\d{4}-\d{2}-\d{2}$/.test(start)) go('/school/groups', 'Check the time and the start date');
+  if (!who.teacher && !who.invite) go('/school/groups', 'Choose the teacher');
+  const count = Math.min(Math.max(Math.round(Number(str(f, 'lessons') || 8)), 1), 40);
+  const asked = Number(str(f, 'minutes') || 90);
+  const minutes = [45, 60, 75, 90, 120].includes(asked) ? asked : 90;
+  const zoom = optional(f, 'zoom_url');
+  // an invited teacher who has not signed in yet: the school holds the group for her
+  const teacherId = who.teacher ?? user!.id;
+  const { data: g, error } = await supabase.from('groups').insert({
+    name, level: optional(f, 'level'), kind: 'group', teacher_id: teacherId, pending_teacher: who.invite ?? null,
+    days, start_time: time, tz, start_date: start, capacity: Number(str(f, 'capacity') || 10), zoom_url: zoom,
+  }).select('id').single();
+  if (error || !g) go('/school/groups', error?.message ?? 'The group was not created');
+  const rows: Record<string, unknown>[] = [];
+  const d = new Date(`${start}T12:00:00Z`);
+  for (let i = 0; i < 400 && rows.length < count; i++) {
+    const iso = d.getUTCDay() === 0 ? 7 : d.getUTCDay(); // Monday = 1 … Sunday = 7
+    if (days.includes(iso)) {
+      rows.push({
+        teacher_id: teacherId, group_id: g!.id, duration_min: minutes, zoom_url: zoom,
+        starts_at: localToIso(`${d.toISOString().slice(0, 10)}T${time}`, tz),
+        ...(who.invite ? { pending_teacher: who.invite } : {}),
+      });
+    }
+    d.setUTCDate(d.getUTCDate() + 1);
+  }
+  const { error: e2 } = await supabase.from('lessons').insert(rows);
+  go(`/groups/${g!.id}`, e2?.message);
 }
 
 export async function updateGroup(f: FormData) {
@@ -188,6 +233,8 @@ export async function setRecording(f: FormData) {
   const supabase = await supabaseServer();
   const patch: Record<string, string | null> = { recording_url: optional(f, 'recording_url') };
   if (f.has('homework_url')) patch.homework_url = optional(f, 'homework_url');
+  // an extra lesson (not from the program) carries its own topic
+  if (f.has('note')) patch.note = (optional(f, 'note') ?? '').slice(0, 300) || null;
   const { error } = await supabase.from('lessons').update(patch).eq('id', str(f, 'lesson_id'));
   back(returnTo, error?.message);
 }

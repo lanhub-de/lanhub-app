@@ -30,7 +30,7 @@ export default async function LessonsPage({
     q.returns<LessonDb[]>(),
     supabase.from('profiles').select('id, full_name').in('role', ['teacher', 'head_teacher', 'owner']).eq('active', true).order('full_name'),
     supabase.from('students').select('id, full_name, level').eq('status', 'active').order('full_name'),
-    supabase.from('groups').select('id, name').eq('active', true).order('name'),
+    supabase.from('groups').select('id, name, tz, days, start_time').eq('active', true).order('name'),
     supabase.from('package_usage').select('student_id, lessons_left').eq('status', 'active'),
   ]);
   const leftOf = new Map((packages.data ?? []).map((p) => [p.student_id as string, p.lessons_left as number]));
@@ -68,14 +68,10 @@ export default async function LessonsPage({
               {(teachers.data ?? []).map((p) => <option key={p.id} value={p.id}>{p.full_name}</option>)}
             </select>
           </label>
-          <label>{t('lessonKind')}
-            <select name="kind" defaultValue="individual">
-              {['individual', 'trial', 'diagnostic'].map((k) => <option key={k} value={k}>{t(`kind_${k}` as never)}</option>)}
-            </select>
-          </label>
           <BookingFields locale={profile.locale} labels={bookingLabels(t)}
             students={(students.data ?? []).map((s) => ({ id: s.id, name: s.full_name, level: s.level, left: leftOf.get(s.id) ?? null }))}
-            groups={groups.data ?? []} />
+            groups={(groups.data ?? []).map((g) => ({ id: g.id, name: g.name, tz: g.tz, days: g.days, time: g.start_time }))}
+            kinds={{ label: t('lessonKind'), options: ['individual', 'trial', 'diagnostic'].map((k) => ({ value: k, label: t(`kind_${k}` as never) })) }} />
 
           <label>{t('zoomLink')}<input type="url" name="zoom_url" /></label>
           <Submit className="primary">{t('add')}</Submit>

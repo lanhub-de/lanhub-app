@@ -66,14 +66,15 @@ export default async function StudentsPage({ searchParams }: { searchParams: Pro
           <tbody>
             {list.map((s) => (
               <tr key={s.id}>
-                <td><Link href={`/school/students/${s.id}`}>{s.full_name}</Link>{s.status !== 'active' && <span className="muted"> · {s.status}</span>}</td>
+                <td><Link href={`/school/students/${s.id}`}>{s.full_name}</Link>{s.status !== 'active' && <span className="muted"> · {t(`stu_${s.status}` as never)}</span>}</td>
                 <td>{s.level ?? ''}</td>
                 <td>{whoTeaches(s)}</td>
                 <td>{t(s.market === 'intl' ? 'market_intl' : 'market_ua')}</td>
                 <td className="num">
                   {active.has(s.id)
                     ? <span className={`pill ${active.get(s.id)! <= 2 ? 'warn' : ''}`}>{t('lessonsLeft', { n: active.get(s.id)! })}</span>
-                    : <span className="pill warn">{t('noPackage')}</span>}
+                    : s.status !== 'active' ? <span className="muted">—</span>
+                      : <span className="pill warn">{t('noPackage')}</span>}
                 </td>
               </tr>
             ))}

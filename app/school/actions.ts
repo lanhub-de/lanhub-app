@@ -57,6 +57,19 @@ export async function updateStudent(f: FormData) {
   done(`/school/students/${id}`, error?.message);
 }
 
+// "Not continuing" / "paused" / back to active: for a student whose package is
+// over. A paused or gone student leaves the "not renewed" list and her
+// teacher's cabinet; her card, lessons and payments stay.
+export async function setStudentStatus(f: FormData) {
+  const id = str(f, 'id');
+  const status = str(f, 'status');
+  const returnTo = str(f, 'return_to') || `/school/students/${id}`;
+  if (!['active', 'paused', 'left'].includes(status)) go(returnTo, 'Unknown status');
+  const supabase = await supabaseServer();
+  const { data, error } = await supabase.from('students').update({ status }).eq('id', id).select('id');
+  done(returnTo, error?.message ?? (data?.length ? null : 'Not saved'));
+}
+
 export async function addPackage(f: FormData) {
   const studentId = str(f, 'student_id');
   const supabase = await supabaseServer();

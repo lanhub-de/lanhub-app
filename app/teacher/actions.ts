@@ -2,7 +2,7 @@
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { supabaseServer } from '@/lib/supabase/server';
-import { kyivLocalToIso } from '@/lib/i18n';
+import { GROUP_TZS, localToIso, SCHOOL_TZ } from '@/lib/i18n';
 import { sendMessage } from '@/app/chat/actions';
 import { sendStudentInvite } from '@/lib/mail';
 
@@ -25,32 +25,51 @@ export async function setLessonStatus(formData: FormData) {
   back(returnTo, error?.message);
 }
 
-// A lesson moved to another time and/or given another length (Kyiv time in
-// the form). The database keeps the change in the lesson's history (the school
-// sees moves to another day and length changes); the student gets a note.
+// A lesson moved to another time and/or given another length. The form says
+// which clock its time is on: Kyiv (individual lessons, the school journal) or
+// the group's own time (a group lesson's card). The database keeps the change
+// in the lesson's history (the school sees moves to another day and length
+// changes); the student, or the group's chat, gets a note. A lesson marked
+// "rescheduled" becomes a booked lesson again at its new time.
 export async function moveLesson(formData: FormData) {
   const id = String(formData.get('id'));
   const returnTo = String(formData.get('return_to') || '/teacher');
   const local = String(formData.get('starts_at') || '');
   if (!local) return back(returnTo, 'Choose the new time');
-  const to = kyivLocalToIso(local);
-  if (Number.isNaN(new Date(to).getTime())) return back(returnTo, 'Check the date and time');
   const supabase = await supabaseServer();
-  const { data: before } = await supabase.from('lessons').select('starts_at, duration_min, student_id, teacher_id, pending_teacher')
-    .eq('id', id).maybeSingle();
+  const { data: before } = await supabase.from('lessons')
+    .select('starts_at, duration_min, status, student_id, group_id, teacher_id, pending_teacher, groups!lessons_group_id_fkey(tz)')
+    .eq('id', id).maybeSingle<{
+      starts_at: string; duration_min: number; status: string; student_id: string | null; group_id: string | null;
+      teacher_id: string; pending_teacher: string | null; groups: { tz: string } | null;
+    }>();
   if (!before) return back(returnTo, 'Lesson not found');
+  const groupTz = before.groups?.tz ?? SCHOOL_TZ;
+  const tz = String(formData.get('tz') || '') === groupTz ? groupTz : SCHOOL_TZ;
+  const to = localToIso(local, tz);
+  if (Number.isNaN(new Date(to).getTime())) return back(returnTo, 'Check the date and time');
   const minutes = Number(formData.get('duration_min') || before.duration_min || 60);
   const length = [30, 45, 60, 75, 90, 105, 120, 150, 180].includes(minutes) ? minutes : before.duration_min;
   const moved = new Date(before.starts_at).getTime() !== new Date(to).getTime();
-  if (!moved && length === before.duration_min) return back(returnTo);
-  const { error } = await supabase.from('lessons').update({ starts_at: to, duration_min: length }).eq('id', id);
+  const revive = before.status === 'rescheduled';
+  if (!moved && length === before.duration_min && !revive) return back(returnTo);
+  const patch: Record<string, unknown> = { starts_at: to, duration_min: length };
+  if (revive) patch.status = 'scheduled';
+  const { error } = await supabase.from('lessons').update(patch).eq('id', id);
   if (error) return back(returnTo, error.message);
   // a note only about lessons still ahead (fixing the journal afterwards is quiet)
   const ahead = Math.max(new Date(before.starts_at).getTime(), new Date(to).getTime()) > Date.now();
-  if (ahead && before.student_id && !before.pending_teacher) {
-    await tellStudent(supabase, before.student_id, before.teacher_id, moved
-      ? `🔁 Заняття перенесено / Lesson moved: ${fmtKyiv(before.starts_at)} → ${fmtKyiv(to)} (${length} хв / min)`
-      : `⏱ Заняття ${fmtKyiv(to)} триватиме ${length} хв / The lesson will take ${length} min`);
+  if (ahead && !before.pending_teacher) {
+    if (before.group_id) {
+      const f = (iso: string) => fmtIn(iso, groupTz);
+      await tellGroup(supabase, before.group_id, moved || revive
+        ? `🔁 Заняття перенесено / Lesson moved: ${f(before.starts_at)} → ${f(to)} (${length} хв / min · ${tzNote(groupTz)})`
+        : `⏱ Заняття ${f(to)} триватиме ${length} хв / The lesson will take ${length} min`);
+    } else if (before.student_id) {
+      await tellStudent(supabase, before.student_id, before.teacher_id, moved
+        ? `🔁 Заняття перенесено / Lesson moved: ${fmtKyiv(before.starts_at)} → ${fmtKyiv(to)} (${length} хв / min)`
+        : `⏱ Заняття ${fmtKyiv(to)} триватиме ${length} хв / The lesson will take ${length} min`);
+    }
   }
   back(returnTo);
 }
@@ -62,8 +81,11 @@ export async function repeatLesson(formData: FormData) {
   const returnTo = String(formData.get('return_to') || '/teacher');
   const supabase = await supabaseServer();
   const { data: l } = await supabase.from('lessons')
-    .select('teacher_id, student_id, group_id, kind, starts_at, duration_min, zoom_url, pending_teacher, package_id')
-    .eq('id', id).maybeSingle();
+    .select('teacher_id, student_id, group_id, kind, starts_at, duration_min, zoom_url, pending_teacher, package_id, groups!lessons_group_id_fkey(tz)')
+    .eq('id', id).maybeSingle<{
+      teacher_id: string; student_id: string | null; group_id: string | null; kind: string; starts_at: string; duration_min: number;
+      zoom_url: string | null; pending_teacher: string | null; package_id: string | null; groups: { tz: string } | null;
+    }>();
   if (!l) return back(returnTo, 'Lesson not found');
   const next = new Date(new Date(l.starts_at).getTime() + 7 * 24 * 3600e3).toISOString();
   const row: Record<string, unknown> = {
@@ -73,7 +95,10 @@ export async function repeatLesson(formData: FormData) {
   if (l.group_id) row.group_id = l.group_id; else row.student_id = l.student_id;
   const { error } = await supabase.from('lessons').insert(row);
   if (error) return back(returnTo, error.message);
-  if (l.student_id && !l.pending_teacher) {
+  if (l.group_id && !l.pending_teacher) {
+    const tz = l.groups?.tz ?? SCHOOL_TZ;
+    await tellGroup(supabase, l.group_id, `📅 Нове заняття / New lesson: ${fmtIn(next, tz)} (${tzNote(tz)})`);
+  } else if (l.student_id && !l.pending_teacher) {
     await tellStudent(supabase, l.student_id, l.teacher_id, `📅 Нове заняття / New lesson: ${fmtKyiv(next)}`);
   }
   back(returnTo);
@@ -85,16 +110,34 @@ export async function deleteLesson(formData: FormData) {
   const id = String(formData.get('id'));
   const returnTo = String(formData.get('return_to') || '/teacher');
   const supabase = await supabaseServer();
-  const { data: l } = await supabase.from('lessons').select('starts_at, student_id, teacher_id, pending_teacher')
-    .eq('id', id).maybeSingle();
+  const { data: l } = await supabase.from('lessons')
+    .select('starts_at, student_id, group_id, teacher_id, pending_teacher, groups!lessons_group_id_fkey(tz)')
+    .eq('id', id).maybeSingle<{
+      starts_at: string; student_id: string | null; group_id: string | null; teacher_id: string; pending_teacher: string | null;
+      groups: { tz: string } | null;
+    }>();
   if (!l) return back(returnTo, 'Lesson not found');
   const { data: gone, error } = await supabase.from('lessons').delete().eq('id', id).select('id');
   if (error) return back(returnTo, error.message);
   if (!gone?.length) return back(returnTo, 'This booking can no longer be deleted here: please ask the school');
-  if (new Date(l.starts_at).getTime() > Date.now() && l.student_id && !l.pending_teacher) {
-    await tellStudent(supabase, l.student_id, l.teacher_id, `❌ Заняття скасовано / Lesson cancelled: ${fmtKyiv(l.starts_at)}`);
+  if (new Date(l.starts_at).getTime() > Date.now() && !l.pending_teacher) {
+    if (l.group_id) {
+      const tz = l.groups?.tz ?? SCHOOL_TZ;
+      await tellGroup(supabase, l.group_id, `❌ Заняття скасовано / Lesson cancelled: ${fmtIn(l.starts_at, tz)} (${tzNote(tz)})`);
+    } else if (l.student_id) {
+      await tellStudent(supabase, l.student_id, l.teacher_id, `❌ Заняття скасовано / Lesson cancelled: ${fmtKyiv(l.starts_at)}`);
+    }
   }
   back(returnTo);
+}
+
+// The same note for a group goes to the group's chat (only people who can
+// write there; otherwise the change is simply saved).
+async function tellGroup(supabase: Awaited<ReturnType<typeof supabaseServer>>, groupId: string, body: string) {
+  try {
+    const { data: cid } = await supabase.rpc('start_chat', { p_kind: 'group', p_group: groupId, p_student: null, p_teacher: null });
+    if (cid) await sendMessage({ conversationId: cid as string, body });
+  } catch { /* the change is saved either way */ }
 }
 
 async function tellStudent(supabase: Awaited<ReturnType<typeof supabaseServer>>, studentId: string, teacherId: string, body: string) {
@@ -127,15 +170,22 @@ export async function addLesson(formData: FormData) {
     return [30, 45, 60, 75, 90, 105, 120, 150, 180].includes(m) ? m : 60;
   };
   const whenOf = (slot: string) => slot.split('|')[0];
-  if (slots.some((x) => Number.isNaN(new Date(kyivLocalToIso(whenOf(x))).getTime()))) return back(returnTo, 'Check the date and time');
   const [type, id] = who.split(':');
+  // a group's lessons are typed in the group's own time when the form says so
+  let tz = SCHOOL_TZ;
+  if (type === 'g') {
+    const { data: g } = await supabase.from('groups').select('tz').eq('id', id).maybeSingle();
+    if (!g) return back(returnTo, 'Group not found');
+    if (String(formData.get('tz') || '') === g.tz && GROUP_TZS.includes(g.tz)) tz = g.tz;
+  }
+  if (slots.some((x) => Number.isNaN(new Date(localToIso(whenOf(x), tz)).getTime()))) return back(returnTo, 'Check the date and time');
   const pending = String(formData.get('pending') || '') || null;
   const teacherId = pending ? user.id : String(formData.get('teacher_id') || user.id);
   const kind = String(formData.get('kind') || '');
   const rows = slots.map((slot) => {
     const row: Record<string, unknown> = {
       teacher_id: teacherId,
-      starts_at: kyivLocalToIso(whenOf(slot)),
+      starts_at: localToIso(whenOf(slot), tz),
       duration_min: lengthOf(slot),
       zoom_url: String(formData.get('zoom_url') || '') || null,
     };
@@ -158,6 +208,12 @@ export async function addLesson(formData: FormData) {
       }
     } catch { /* the lesson is booked either way */ }
   }
+  if (type === 'g' && !pending) {
+    const first = fmtIn(String(rows[0].starts_at), tz);
+    await tellGroup(supabase, id, rows.length > 3
+      ? `📅 Нові заняття / New lessons: ${rows.length}, перше / first ${first} (${tzNote(tz)})`
+      : `📅 ${rows.length > 1 ? 'Нові заняття / New lessons' : 'Нове заняття / New lesson'}: ${rows.map((r) => fmtIn(String(r.starts_at), tz)).join(', ')} (${tzNote(tz)})`);
+  }
   back(returnTo);
 }
 
@@ -170,10 +226,14 @@ function shiftLocal(local: string, days: number) {
   return `${dt.toISOString().slice(0, 10)}T${time}`;
 }
 
-function fmtKyiv(iso: string) {
-  return new Intl.DateTimeFormat('uk-UA', { timeZone: 'Europe/Kyiv', weekday: 'short', day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' })
+function fmtIn(iso: string, tz: string) {
+  return new Intl.DateTimeFormat('uk-UA', { timeZone: tz, weekday: 'short', day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' })
     .format(new Date(iso));
 }
+function fmtKyiv(iso: string) {
+  return fmtIn(iso, SCHOOL_TZ);
+}
+const tzNote = (tz: string) => (tz === 'Europe/Vienna' ? 'час Відня / Vienna time' : tz === SCHOOL_TZ ? 'за Києвом / Kyiv time' : tz);
 
 // Materials for one lesson: a library file or the teacher's own.
 export async function attachLessonFile(formData: FormData) {

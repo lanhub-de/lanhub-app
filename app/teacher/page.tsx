@@ -34,7 +34,8 @@ export default async function TeacherPage({ searchParams }: { searchParams: Prom
   const month = currentMonthStart();
 
   const [unmarked, ahead, recent, students, groups, packages, pay, payLines, extras, toCheck, settings] = await Promise.all([
-    theirs(supabase.from('lessons').select(select)).eq('status', 'scheduled')
+    // not marked yet, plus group lessons postponed with no new date
+    theirs(supabase.from('lessons').select(select)).or('status.eq.scheduled,and(status.eq.rescheduled,group_id.not.is.null)')
       .lt('starts_at', startToday.toISOString()).gte('starts_at', ago30).order('starts_at').returns<LessonDb[]>(),
     theirs(supabase.from('lessons').select(select))
       .gte('starts_at', startToday.toISOString()).lte('starts_at', in14).order('starts_at').returns<LessonDb[]>(),
@@ -42,7 +43,7 @@ export default async function TeacherPage({ searchParams }: { searchParams: Prom
       .gte('starts_at', ago30).lt('starts_at', startToday.toISOString()).order('starts_at', { ascending: false })
       .limit(8).returns<LessonDb[]>(),
     supabase.from('students').select('id, full_name, level, teacher_id, pending_teacher, schedule_note').eq('status', 'active').order('full_name'),
-    theirs(supabase.from('group_overview').select('id, name, members, lessons_total, lessons_done')).eq('active', true).order('name'),
+    theirs(supabase.from('group_overview').select('id, name, members, lessons_total, lessons_done, tz, days, start_time')).eq('active', true).order('name'),
     supabase.from('package_usage').select('student_id, lessons_left, valid_until, status').eq('status', 'active'),
     supabase.from('monthly_payouts').select('total, lessons_count, currency').eq('teacher_id', who.id).eq('month', month),
     who.pending ? Promise.resolve({ data: [] as PayLine[] })
@@ -78,7 +79,8 @@ export default async function TeacherPage({ searchParams }: { searchParams: Prom
   const all = [...(unmarked.data ?? []), ...(ahead.data ?? []), ...(recent.data ?? [])];
   const groupIds = [...new Set(all.map((l) => l.group_id).filter(Boolean))] as string[];
   const groupLessonIds = all.filter((l) => l.group_id).map((l) => l.id);
-  const soloIds = [...new Set([...all.filter((l) => !l.group_id).map((l) => l.id), ...review.filter((l) => !l.group_id).map((l) => l.id)])];
+  // lessons that carry their own materials: individual ones and extra group lessons (not from a program)
+  const soloIds = [...new Set([...all.filter((l) => !l.group_id || !l.program_lessons).map((l) => l.id), ...review.filter((l) => !l.group_id).map((l) => l.id)])];
   const [memberRows, absenceRows, attached, libraryFiles, libraryFolders] = await Promise.all([
     groupIds.length
       ? supabase.from('group_members').select('group_id, student_id, students(full_name)').in('group_id', groupIds)
@@ -103,11 +105,14 @@ export default async function TeacherPage({ searchParams }: { searchParams: Prom
     .filter((m) => m.group_id === gid).map((m) => ({ student_id: m.student_id, name: m.students?.full_name ?? '' }))
     .sort((a, b) => a.name.localeCompare(b.name));
   const absentIn = (lid: string) => new Set((absenceRows.data ?? []).filter((a) => a.lesson_id === lid).map((a) => a.student_id));
-  const card = (l: LessonDb, showDay = false) => l.group_id && l.program_lessons
-    ? <GroupLessonCard key={l.id} lesson={l} members={membersOf(l.group_id)} absent={absentIn(l.id)} t={t} locale={profile.locale} returnTo={here} />
+  const isSchool = ['owner', 'manager', 'head_teacher'].includes(profile.role);
+  // every group lesson (of the program or an extra one) gets the group card with its attendance
+  const card = (l: LessonDb, showDay = false) => l.group_id
+    ? <GroupLessonCard key={l.id} lesson={l} members={membersOf(l.group_id)} absent={absentIn(l.id)} t={t} locale={profile.locale} returnTo={here}
+        userId={profile.id} school={isSchool} materials={materialsOf(l.id)} library={libraryRefs} />
     : <TodayLessonCard key={l.id} lesson={l} t={t} locale={profile.locale} returnTo={here} showDay={showDay}
         materials={materialsOf(l.id)} library={libraryRefs} userId={profile.id} teacherZoom={teacherZoom}
-        school={['owner', 'manager', 'head_teacher'].includes(profile.role)} />;
+        school={isSchool} />;
 
   const myStudents = (students.data ?? []).filter((s) => (who.pending ? s.pending_teacher === who.pending : s.teacher_id === who.id && !s.pending_teacher));
   const pkgByStudent = new Map((packages.data ?? []).map((p) => [p.student_id, p]));
@@ -146,7 +151,7 @@ export default async function TeacherPage({ searchParams }: { searchParams: Prom
             </div>
             <ScheduleLesson t={t} locale={profile.locale} returnTo={here}
               students={myStudents.map((s) => ({ id: s.id, name: s.full_name, level: s.level, left: pkgByStudent.get(s.id)?.lessons_left ?? null }))}
-              groups={(groups.data ?? []).map((g) => ({ id: g.id, name: g.name }))}
+              groups={(groups.data ?? []).map((g) => ({ id: g.id, name: g.name, tz: g.tz, days: g.days, time: g.start_time }))}
               teacherId={who.viewing && !who.pending ? who.id : undefined}
               pending={who.pending}
               school={profile.role === 'owner' || profile.role === 'head_teacher'} />

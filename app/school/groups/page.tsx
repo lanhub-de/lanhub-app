@@ -69,8 +69,8 @@ export default async function GroupsPage({ searchParams }: { searchParams: Promi
         <form action={createGroup} className="stack" style={{ marginTop: 14 }}>
           <div className="form">
             <label>{t('program')}
-              <select name="program_id" required defaultValue="">
-                <option value="" disabled>…</option>
+              <select name="program_id" defaultValue="">
+                <option value="">{t('noProgramOption')}</option>
                 {(programs.data ?? []).map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}
               </select>
             </label>
@@ -81,11 +81,23 @@ export default async function GroupsPage({ searchParams }: { searchParams: Promi
                 {invited.map((i) => <option key={i.email} value={`${INVITE}${i.email}`}>{i.full_name} · {t('pending')}</option>)}
               </select>
             </label>
-            <label>{t('time')} ({t('groupTime')})<input name="time" type="time" required defaultValue="20:10" /></label>
+            <label>{t('time')}<input name="time" type="time" required defaultValue="20:10" /></label>
+            <label>{t('groupTz')}
+              <select name="tz" defaultValue="Europe/Vienna">
+                <option value="Europe/Vienna">{t('tzVienna')}</option>
+                <option value="Europe/Kyiv">{t('tzKyiv')}</option>
+              </select>
+            </label>
             <label>{t('startDate')}<input name="start" type="date" required defaultValue={today} /></label>
             <label>{t('capacity')}<input name="capacity" type="number" min={1} max={40} defaultValue={10} /></label>
             <label>{t('zoomLink')}<input name="zoom_url" type="url" placeholder="https://zoom.us/j/…" /></label>
-            <label>{t('groupNameOptional')}<input name="name" /></label>
+            <label>{t('groupNameNeeded')}<input name="name" /></label>
+            <label>{t('groupLessonsN')}<input name="lessons" type="number" min={1} max={40} defaultValue={8} /></label>
+            <label>{t('groupMinutes')}
+              <select name="minutes" defaultValue="90">
+                {[45, 60, 75, 90, 120].map((m) => <option key={m} value={m}>{m}</option>)}
+              </select>
+            </label>
           </div>
           <fieldset className="days">
             <legend>{t('days')}</legend>
@@ -96,7 +108,7 @@ export default async function GroupsPage({ searchParams }: { searchParams: Promi
               </label>
             ))}
           </fieldset>
-          <p className="muted" style={{ margin: 0 }}>{t('createGroupHint')}</p>
+          <p className="muted" style={{ margin: 0 }}>{t('createGroupHint')} {t('createGroupHintPlain')}</p>
           <div><Submit className="primary">{t('createGroup')}</Submit></div>
         </form>
       </details>

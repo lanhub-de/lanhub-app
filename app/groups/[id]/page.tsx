@@ -9,9 +9,10 @@ import { addMember, archiveGroup, continueGroup, removeMember, updateGroup } fro
 import GroupLessonCard from '@/components/GroupLessonCard';
 import { LESSON_SELECT, type LessonDb } from '@/lib/lessons';
 import Submit from '@/components/Submit';
+import ScheduleLesson from '@/components/ScheduleLesson';
 
 type LessonRowDb = {
-  id: string; starts_at: string; status: string; recording_url: string | null; teacher_id: string;
+  id: string; starts_at: string; status: string; recording_url: string | null; teacher_id: string; note: string | null;
   program_lessons: { n: number; title: string; topic: string | null } | null;
 };
 
@@ -30,11 +31,11 @@ export default async function GroupPage({ params, searchParams }: {
 
   const [program, members, lessons, people, students, invited, pendingName] = await Promise.all([
     g.program_id
-      ? supabase.from('programs').select('id, title, next_program_id').eq('id', g.program_id).maybeSingle()
+      ? supabase.from('programs').select('id, title, next_program_id, lesson_minutes').eq('id', g.program_id).maybeSingle()
       : Promise.resolve({ data: null }),
     supabase.from('group_members').select('student_id, students(full_name, level, market, contact)').eq('group_id', id)
       .returns<{ student_id: string; students: { full_name: string; level: string | null; market: string; contact: string | null } | null }[]>(),
-    supabase.from('lessons').select('id, starts_at, status, recording_url, teacher_id, program_lessons(n, title, topic)')
+    supabase.from('lessons').select('id, starts_at, status, recording_url, teacher_id, note, program_lessons(n, title, topic)')
       .eq('group_id', id).order('starts_at').returns<LessonRowDb[]>(),
     supabase.from('profiles').select('id, full_name, role, active'),
     staff ? supabase.from('students').select('id, full_name, level').eq('status', 'active').order('full_name') : Promise.resolve({ data: [] }),
@@ -98,17 +99,19 @@ export default async function GroupPage({ params, searchParams }: {
                   const missed = absentCount(l.id);
                   return (
                     <tr key={l.id} className={openLesson?.id === l.id ? 'row-open' : ''}>
-                      <td style={{ width: 36, fontWeight: 700, color: 'var(--red)' }}>{l.program_lessons?.n ?? i + 1}</td>
+                      <td style={{ width: 36, fontWeight: 700, color: 'var(--red)' }}>{l.program_lessons?.n ?? (g.program_id ? '+' : i + 1)}</td>
                       <td>
-                        <Link href={`/groups/${g.id}?l=${l.id}#lesson`} style={{ fontWeight: 600, color: 'var(--ink)' }}>{l.program_lessons?.title ?? t('c_lesson', { n: i + 1 })}</Link>
+                        <Link href={`/groups/${g.id}?l=${l.id}#lesson`} style={{ fontWeight: 600, color: 'var(--ink)' }}>
+                          {l.program_lessons?.title ?? (g.program_id ? t('extraLesson') : t('c_lesson', { n: i + 1 }))}
+                        </Link>
                         <div className="muted" style={{ fontSize: 13 }}>
-                          {l.program_lessons?.topic ?? ''}
+                          {l.program_lessons?.topic ?? l.note ?? ''}
                           {l.teacher_id !== g.teacher_id ? ` · ${nameOf.get(l.teacher_id) ?? ''}` : ''}
                         </div>
                       </td>
                       <td className="muted" style={{ whiteSpace: 'nowrap' }}>{fmtInTz(l.starts_at, g.tz, profile.locale)}</td>
                       <td style={{ whiteSpace: 'nowrap' }}>
-                        {l.status !== 'scheduled' && <span className={`pill ${counted ? 'ok' : ''}`}>{t(`st_${l.status}` as never)}</span>}
+                        {l.status !== 'scheduled' && <span className={`pill ${counted ? 'ok' : l.status === 'rescheduled' ? 'warn' : ''}`}>{t(`st_${l.status}` as never)}</span>}
                         {missed > 0 && <span className="muted" style={{ fontSize: 13 }}> · {t('absentN', { n: missed })}</span>}
                         {l.recording_url && <> · <a href={l.recording_url} target="_blank" rel="noreferrer">{t('recording')}</a></>}
                       </td>
@@ -124,7 +127,16 @@ export default async function GroupPage({ params, searchParams }: {
               <Link href={`/school/programs/${g.program_id}`}>{t('openProgram')}</Link>
             )}
           </p>
-          {openLesson && openLesson.program_lessons && (
+          {(staff || g.teacher_id === profile.id) && (g.teacher_id || g.pending_teacher) && (
+            <div style={{ marginTop: 12 }}>
+              <ScheduleLesson t={t} locale={profile.locale} returnTo={`/groups/${g.id}`} students={[]} align="left" label={t('addLesson')}
+                groups={[{ id: g.id, name: g.name, tz: g.tz, days: g.days, time: g.start_time, minutes: program.data?.lesson_minutes ?? 90 }]}
+                preselect={`g:${g.id}`}
+                teacherId={staff && g.teacher_id && !g.pending_teacher ? g.teacher_id : undefined}
+                pending={staff ? g.pending_teacher : null} />
+            </div>
+          )}
+          {openLesson && (
             <div id="lesson" style={{ marginTop: 14 }}>
               <GroupLessonCard
                 lesson={openLesson}
@@ -132,6 +144,7 @@ export default async function GroupPage({ params, searchParams }: {
                   .sort((a, b) => a.name.localeCompare(b.name))}
                 absent={new Set((absences ?? []).filter((a) => a.lesson_id === openLesson.id).map((a) => a.student_id))}
                 t={t} locale={profile.locale} returnTo={`/groups/${g.id}?l=${openLesson.id}`}
+                userId={profile.id} school={staff}
               />
             </div>
           )}

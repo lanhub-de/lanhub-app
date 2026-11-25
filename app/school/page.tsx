@@ -6,6 +6,8 @@ import { LESSON_SELECT, type LessonDb } from '@/lib/lessons';
 import { rateSummary, type RateRow } from '@/lib/rates';
 import { syncAllowances } from '@/lib/allowances';
 import { INVITE, pendingTeachers } from '@/lib/invites';
+import { setStudentStatus } from './actions';
+import Submit from '@/components/Submit';
 
 type PayoutRow = { teacher_id: string; teacher_name: string; total: number | string; lessons_count: number; review_status: string; currency: string };
 type Person = { id: string; full_name: string; role: string; active: boolean };
@@ -78,6 +80,33 @@ export default async function SchoolOverview() {
           </div>
         )}
       </div>
+
+      {ended.length > 0 && (
+        <details className="card" style={{ marginBottom: 20 }}>
+          <summary>{t('notRenewed')} · {ended.length}</summary>
+          <p className="muted" style={{ fontSize: 14 }}>{t('packageOverHint')}</p>
+          {ended.map((s) => (
+            <div key={s.student_id} className="spread" style={{ padding: '8px 0', borderTop: '1px solid var(--sand)' }}>
+              <span>
+                <Link href={`/school/students/${s.student_id}`} style={{ fontWeight: 600 }}>{s.full_name}</Link>
+                <span className="muted" style={{ fontSize: 13 }}>
+                  {[s.level, nameOf.get(s.teacher_id ?? ''), s.last_valid_until ? fmtDate(s.last_valid_until, profile.locale) : null].filter(Boolean).map((x) => ` · ${x}`).join('')}
+                </span>
+              </span>
+              <span className="row">
+                {(['paused', 'left'] as const).map((st) => (
+                  <form key={st} action={setStudentStatus}>
+                    <input type="hidden" name="id" value={s.student_id} />
+                    <input type="hidden" name="status" value={st} />
+                    <input type="hidden" name="return_to" value="/school" />
+                    <Submit className="small">{t(st === 'paused' ? 'markPaused' : 'markLeft')}</Submit>
+                  </form>
+                ))}
+              </span>
+            </div>
+          ))}
+        </details>
+      )}
 
       <div className="split">
         {isOwner && (

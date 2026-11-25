@@ -7,7 +7,7 @@ import { fmtDate, fmtMoney } from '@/lib/i18n';
 import { LESSON_SELECT, toView, type LessonDb } from '@/lib/lessons';
 import { INVITE, pendingTeachers } from '@/lib/invites';
 import InviteStudent from '@/components/InviteStudent';
-import { addPackage, addToGroup, deleteStudent, extendPackage, updatePackage, updateStudent } from '../../actions';
+import { addPackage, addToGroup, deleteStudent, extendPackage, setStudentStatus, updatePackage, updateStudent } from '../../actions';
 import Submit from '@/components/Submit';
 
 export default async function StudentPage({
@@ -60,6 +60,22 @@ export default async function StudentPage({
         <section className="stack">
           <h2>{t('packages')}</h2>
           {pkgs.length === 0 && <p className="muted">{t('noPackage')}</p>}
+          {/* the package is over: is she continuing? */}
+          {(s.status !== 'active' || (pkgs.length > 0 && !pkgs.some((p) => p.status === 'active'))) && (
+            <div className="attention">
+              <strong>{s.status === 'active' ? t('packageOverTitle') : t('studentIs', { status: t(`stu_${s.status}` as never) })}</strong>
+              {s.status === 'active' && <span>{t('packageOverHint')}</span>}
+              <span className="row" style={{ marginTop: 6 }}>
+                {(s.status === 'active' ? ['paused', 'left'] : ['active']).map((st) => (
+                  <form key={st} action={setStudentStatus}>
+                    <input type="hidden" name="id" value={id} />
+                    <input type="hidden" name="status" value={st} />
+                    <Submit className="small">{t(st === 'paused' ? 'markPaused' : st === 'left' ? 'markLeft' : 'markBack')}</Submit>
+                  </form>
+                ))}
+              </span>
+            </div>
+          )}
           {pkgs.map((p) => (
             <div key={p.package_id} className="card stack">
               <div className="spread">
@@ -157,7 +173,7 @@ export default async function StudentPage({
             <label>{t('contact')}<input name="contact" defaultValue={s.contact ?? ''} /></label>
             <label>{t('status')}
               <select name="status" defaultValue={s.status}>
-                <option value="active">active</option><option value="paused">paused</option><option value="left">left</option>
+                {['active', 'paused', 'left'].map((st) => <option key={st} value={st}>{t(`stu_${st}` as never)}</option>)}
               </select>
             </label>
             <label>{t('note')}<textarea name="notes" defaultValue={s.notes ?? ''} /></label>

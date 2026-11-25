@@ -1307,3 +1307,56 @@ test('renewal bonus: only for the market in the rule and only for a teacher who 
   await rows(ids.owner, 'insert into public.packages (student_id, lessons_total) values ($1, 8)', [plain.id]);
   assert.equal(await count(plain.id), 0);
 });
+
+test('group lessons move like individual ones: a postponed lesson gets its new date; extra lessons are added and removed', async () => {
+  const [g] = await rows(ids.agata,
+    `insert into public.groups (name, kind, teacher_id, days, start_time, tz)
+     values ('Flow X · Tue/Thu 20:10', 'group', $1, array[2, 4], '20:10', 'Europe/Vienna') returning id`, [ids.toma]);
+  // the teacher adds a lesson to her own group; another teacher cannot
+  const [l] = await rows(ids.toma,
+    `insert into public.lessons (teacher_id, group_id, starts_at, duration_min)
+     values ($1, $2, now() + interval '3 days', 90) returning id, kind`, [ids.toma, g.id]);
+  assert.equal(l.kind, 'group');
+  assert.ok(await fails(ids.nadiia,
+    `insert into public.lessons (teacher_id, group_id, starts_at) values ($1, $2, now() + interval '3 days')`, [ids.nadiia, g.id]));
+
+  // postponed with no new date, then given one: a booked lesson again, and the move is kept
+  await rows(ids.toma, `update public.lessons set status = 'rescheduled' where id = $1`, [l.id]);
+  await rows(ids.toma,
+    `update public.lessons set starts_at = starts_at + interval '7 days', duration_min = 60, status = 'scheduled' where id = $1`, [l.id]);
+  const [after] = await rows(ids.owner,
+    `select l.status, l.duration_min,
+            (select count(*)::int from public.lesson_moves m where m.lesson_id = l.id and m.day_changed) as moves
+       from public.lessons l where l.id = $1`, [l.id]);
+  assert.deepEqual([after.status, after.duration_min, after.moves], ['scheduled', 60, 1]);
+
+  // a cancelled lesson stays where it was for the teacher; the school can still fix it
+  await rows(ids.toma, `update public.lessons set status = 'cancelled' where id = $1`, [l.id]);
+  assert.match(await fails(ids.toma,
+    `update public.lessons set starts_at = starts_at + interval '1 day', status = 'scheduled' where id = $1`, [l.id]), /not marked yet/);
+  await rows(ids.agata, `update public.lessons set starts_at = starts_at + interval '1 day', status = 'scheduled' where id = $1`, [l.id]);
+
+  // a wrong extra lesson: the teacher deletes her own fresh booking
+  const [extra] = await rows(ids.toma,
+    `insert into public.lessons (teacher_id, group_id, starts_at, duration_min)
+     values ($1, $2, now() + interval '5 days', 90) returning id`, [ids.toma, g.id]);
+  await rows(ids.toma, 'delete from public.lessons where id = $1', [extra.id]);
+  assert.equal((await rows(ids.owner, 'select 1 from public.lessons where id = $1', [extra.id])).length, 0);
+});
+
+test('a student who is not continuing leaves the "not renewed" list; the school marks it, a teacher cannot', async () => {
+  const [stu] = await rows(ids.owner,
+    `insert into public.students (full_name, teacher_id, level) values ('Gone', $1, 'A2') returning id`, [ids.nadiia]);
+  await rows(ids.owner, 'insert into public.packages (student_id, lessons_total) values ($1, 1)', [stu.id]);
+  await rows(ids.nadiia,
+    `insert into public.lessons (teacher_id, student_id, starts_at, status) values ($1, $2, now() - interval '2 days', 'done')`,
+    [ids.nadiia, stu.id]);
+  const listed = async () => (await rows(ids.agata, 'select 1 from public.students_not_renewed where student_id = $1', [stu.id])).length;
+  assert.equal(await listed(), 1);
+  await rows(ids.nadiia, `update public.students set status = 'left' where id = $1`, [stu.id]);
+  assert.equal(await listed(), 1);
+  await rows(ids.agata, `update public.students set status = 'left' where id = $1`, [stu.id]);
+  assert.equal(await listed(), 0);
+  await rows(ids.manager, `update public.students set status = 'active' where id = $1`, [stu.id]);
+  assert.equal(await listed(), 1);
+});

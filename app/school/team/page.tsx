@@ -108,9 +108,10 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
                       <tr key={r.id}>
                         <td>
                           {describe(r)}
-                          {r.rate_steps.length > 0 && (
+                          {r.rate_steps.some((s) => Number(s.amount) !== Number(r.amount)) && (
                             <div className="muted" style={{ fontSize: 13 }}>
                               {[...r.rate_steps].sort((a, b) => a.min_present - b.min_present)
+                                .filter((s, i, all) => Number(s.amount) !== Number(i ? all[i - 1].amount : r.amount))
                                 .map((s) => `${t('fromPresent', { n: s.min_present })}: ${fmtMoney(s.amount, r.currency)}`).join(' · ')}
                             </div>
                           )}

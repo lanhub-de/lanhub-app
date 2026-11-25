@@ -307,6 +307,32 @@ const uk = {
   openProgram: 'Відкрити програму',
   myGroups: 'Мої групи',
   groupTime: 'час Відня',
+  kyivTime: 'за Києвом',
+  newTimeIn: 'Новий час ({tz})',
+  whenIn: 'Дата і час ({tz})',
+  daysIn: 'Дні й час ({tz})',
+  rescheduledHint: 'Перенесено без нової дати. Натисни «Змінити» і вкажи, коли заняття відбудеться.',
+  moveHintGroup: 'Заняття лишається тим самим уроком програми, змінюється лише дата. Перенесення на інший день бачить школа, а група отримує повідомлення в чаті.',
+  repeatNextWeekGroup: 'Додаткове заняття для цієї групи на тиждень пізніше (той самий час, тривалість, Zoom).',
+  extraLesson: 'додаткове заняття',
+  scheduleHintGroup: 'Заняття з’являться в розкладі групи. Час вказуй за часом групи.',
+  noProgramOption: 'без програми',
+  groupLessonsN: 'Скільки занять (для групи без програми)',
+  groupMinutes: 'Тривалість заняття, хв (без програми)',
+  groupTz: 'Час групи',
+  tzVienna: 'Відень / Берлін',
+  tzKyiv: 'Київ',
+  createGroupHintPlain: 'Без програми: вкажи назву, дні, час і кількість занять. Теми викладач впише сам.',
+  groupNameNeeded: 'Назва (обов’язкова для групи без програми)',
+  stu_active: 'навчається',
+  stu_paused: 'на паузі',
+  stu_left: 'не продовжує',
+  packageOverTitle: 'Активного пакета немає',
+  packageOverHint: 'Якщо учень не продовжує, познач це. Він зникне зі списку «не продовжили» і з кабінету викладача, а картка й історія лишаться.',
+  markPaused: 'На паузі',
+  markLeft: 'Не продовжує',
+  markBack: 'Повернути в активні',
+  studentIs: 'Учень: {status}',
   f_title: 'Назва уроку',
   f_topic: 'Граматика',
   f_goal: 'Після уроку студент зможе',
@@ -869,6 +895,32 @@ const en: typeof uk = {
   openProgram: 'Open program',
   myGroups: 'My groups',
   groupTime: 'Vienna time',
+  kyivTime: 'Kyiv time',
+  newTimeIn: 'New time ({tz})',
+  whenIn: 'Date and time ({tz})',
+  daysIn: 'Days and time ({tz})',
+  rescheduledHint: 'Postponed with no new date. Press “Change” and set when the lesson will take place.',
+  moveHintGroup: 'The lesson keeps its place in the program; only the date changes. The school sees a move to another day, and the group gets a chat message.',
+  repeatNextWeekGroup: 'An extra lesson for this group a week later (same time, length, Zoom).',
+  extraLesson: 'extra lesson',
+  scheduleHintGroup: 'The lessons appear in the group’s schedule. Use the group’s time.',
+  noProgramOption: 'no program',
+  groupLessonsN: 'How many lessons (for a group without a program)',
+  groupMinutes: 'Lesson length, min (without a program)',
+  groupTz: 'Group time',
+  tzVienna: 'Vienna / Berlin',
+  tzKyiv: 'Kyiv',
+  createGroupHintPlain: 'Without a program: give a name, days, time and the number of lessons. The teacher fills in the topics.',
+  groupNameNeeded: 'Name (required for a group without a program)',
+  stu_active: 'studying',
+  stu_paused: 'paused',
+  stu_left: 'not continuing',
+  packageOverTitle: 'No active package',
+  packageOverHint: 'If the student is not continuing, mark it. She leaves the “not renewed” list and the teacher’s cabinet; the card and the history stay.',
+  markPaused: 'Paused',
+  markLeft: 'Not continuing',
+  markBack: 'Back to active',
+  studentIs: 'Student: {status}',
   f_title: 'Lesson name',
   f_topic: 'Grammar',
   f_goal: 'After this lesson the student can',
@@ -1185,18 +1237,33 @@ export function fmtMoney(n: number | string, currency = 'UAH') {
   return currency === 'UAH' ? `${s} грн` : `${s} ${currency}`;
 }
 
-// "2026-11-03T16:00" typed in a form means Kyiv time; turn it into an instant.
-export function kyivLocalToIso(local: string) {
+// "2026-11-03T16:00" typed in a form is wall-clock time in a time zone (Kyiv
+// for individual lessons, the group's own for group lessons); turn it into an instant.
+export function localToIso(local: string, tz: string) {
   const asUtc = new Date(local + ':00Z');
   const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: SCHOOL_TZ, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit',
+    timeZone: tz, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit',
     hour: '2-digit', minute: '2-digit',
   }).formatToParts(asUtc);
   const get = (t: string) => Number(parts.find((p) => p.type === t)?.value);
-  const kyivWallAsUtc = Date.UTC(get('year'), get('month') - 1, get('day'), get('hour'), get('minute'));
-  const offset = kyivWallAsUtc - asUtc.getTime();
+  const wallAsUtc = Date.UTC(get('year'), get('month') - 1, get('day'), get('hour'), get('minute'));
+  const offset = wallAsUtc - asUtc.getTime();
   return new Date(asUtc.getTime() - offset).toISOString();
 }
+export function kyivLocalToIso(local: string) {
+  return localToIso(local, SCHOOL_TZ);
+}
+
+// The value for <input type="datetime-local"> showing an instant in a time zone.
+export function localValueIn(iso: string, tz: string) {
+  const p = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+    .formatToParts(new Date(iso));
+  const g = (k: string) => p.find((x) => x.type === k)?.value;
+  return `${g('year')}-${g('month')}-${g('day')}T${g('hour')}:${g('minute')}`;
+}
+
+// The time zones a group can run in.
+export const GROUP_TZS = ['Europe/Vienna', 'Europe/Kyiv'];
 
 export function currentMonthStart() {
   const parts = new Intl.DateTimeFormat('en-CA', { timeZone: SCHOOL_TZ, year: 'numeric', month: '2-digit' })
