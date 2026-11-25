@@ -17,12 +17,13 @@ type Allowance = { id: string; teacher_id: string; label: string; amount: number
 export default async function TeamPage({ searchParams }: { searchParams: Promise<{ e?: string; ok?: string }> }) {
   const { supabase, profile, t } = await requireProfile(['owner']);
   const sp = await searchParams;
-  const [people, invites, rates, allowances, bonuses] = await Promise.all([
+  const [people, invites, rates, allowances, bonuses, diagPay] = await Promise.all([
     supabase.from('profiles').select('id, full_name, email, role, active, viewer_code').order('full_name'),
     supabase.from('invites').select('email, full_name, role, created_at').is('accepted_at', null).order('created_at'),
     supabase.from('teacher_rates').select('*, students(full_name), groups(name), rate_steps(min_present, amount)').order('valid_from', { ascending: false }).returns<Rate[]>(),
     supabase.from('teacher_allowances').select('*').order('starts_on').returns<Allowance[]>(),
     supabase.from('renewal_bonus_rules').select('id, teacher_id, market, min_lessons, amount, currency, valid_from').order('min_lessons').returns<Bonus[]>(),
+    supabase.rpc('diagnostic_pay_shown'),
   ]);
   const thisMonth = currentMonthStart();
   const teaching = (people.data ?? []).filter((p) => ['teacher', 'head_teacher', 'owner'].includes(p.role));
@@ -85,6 +86,10 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
             </div>
           ))}
         </div>
+      )}
+
+      {diagPay.data != null && (
+        <p className="muted" style={{ margin: '0 0 12px' }}>{t('diagFlat', { amount: fmtMoney(Number(diagPay.data)) })}</p>
       )}
 
       <div className="stack">

@@ -8,6 +8,7 @@ import { syncAllowances } from '@/lib/allowances';
 import { INVITE, pendingTeachers } from '@/lib/invites';
 import { setStudentStatus } from './actions';
 import Submit from '@/components/Submit';
+import DiagnosticForm from '@/components/DiagnosticForm';
 
 type PayoutRow = { teacher_id: string; teacher_name: string; total: number | string; lessons_count: number; review_status: string; currency: string };
 type Person = { id: string; full_name: string; role: string; active: boolean };
@@ -19,7 +20,7 @@ export default async function SchoolOverview() {
   const dayAgo = new Date(Date.now() - 864e5).toISOString();
   if (isOwner) await syncAllowances(supabase, month);
 
-  const [notRenewed, unmarked, payouts, people, rates, invited] = await Promise.all([
+  const [notRenewed, unmarked, payouts, people, rates, invited, allStudents] = await Promise.all([
     supabase.from('students_not_renewed').select('student_id, full_name, level, teacher_id, last_valid_until')
       .order('last_valid_until', { ascending: false }),
     supabase.from('lessons').select(LESSON_SELECT).eq('status', 'scheduled').lt('starts_at', dayAgo)
@@ -32,6 +33,7 @@ export default async function SchoolOverview() {
       ? supabase.from('teacher_rates').select('teacher_id, kind, band, market, package_lessons, student_id, group_id, amount, valid_from').returns<RateRow[]>()
       : Promise.resolve({ data: null as RateRow[] | null }),
     isOwner ? Promise.resolve([]) : pendingTeachers(supabase),
+    supabase.from('students').select('id, full_name, level').eq('status', 'active').order('full_name'),
   ]);
 
   const nameOf = new Map((people.data ?? []).map((p) => [p.id, p.full_name]));
@@ -50,7 +52,12 @@ export default async function SchoolOverview() {
     <Shell profile={profile} t={t} active="/school">
       <div className="spread" style={{ alignItems: 'baseline', marginBottom: 16 }}>
         <h1 style={{ margin: 0, textTransform: 'capitalize' }}>{fmtMonth(month, profile.locale)}</h1>
-        {isOwner && <span className="muted" style={{ fontSize: 13 }}>{t('autoFromLog')}</span>}
+        <span className="row">
+          {isOwner && <span className="muted" style={{ fontSize: 13 }}>{t('autoFromLog')}</span>}
+          <DiagnosticForm t={t} students={allStudents.data ?? []}
+            teachers={(people.data ?? []).filter((p) => p.active && ['teacher', 'head_teacher', 'owner'].includes(p.role))
+              .sort((a, b) => a.full_name.localeCompare(b.full_name))} />
+        </span>
       </div>
 
       <div className="grid" style={{ marginBottom: 20 }}>

@@ -457,7 +457,12 @@ details.s-prev > summary { display: flex; justify-content: space-between; gap: 1
 .schedule-form.left { left: 0; right: auto; }
 .schedule-form label { font-size: 13px; }
 .schedule-two { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-@media (max-width: 640px) { .schedule-form { left: 0; right: auto; } }
+@media (max-width: 640px) {
+  .schedule-form { left: 0; right: auto; }
+  /* on a phone the opened form takes its own full row in the page, so it never runs off the screen */
+  .schedule[open] { flex: 1 1 100%; }
+  .schedule[open] > .schedule-form { position: static; margin-top: 8px; }
+}
 
 /* recordings and materials in a viewed cabinet */
 .review-list { display: flex; flex-direction: column; margin-top: 8px; }

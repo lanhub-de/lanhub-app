@@ -1360,3 +1360,52 @@ test('a student who is not continuing leaves the "not renewed" list; the school 
   await rows(ids.manager, `update public.students set status = 'active' where id = $1`, [stu.id]);
   assert.equal(await listed(), 1);
 });
+
+test('a diagnostic is booked by the school, never by the teacher, and pays the flat school amount once held', async () => {
+  const [lead] = await rows(ids.manager,
+    `insert into public.students (full_name, level, market) values ('Lead Diag', 'A2', 'ua') returning id`);
+  await rows(ids.owner, 'insert into public.packages (student_id, lessons_total) values ($1, 4)', [lead.id]);
+
+  // the manager books it for a teacher who has no rate for diagnostics
+  const [d] = await rows(ids.manager,
+    `insert into public.lessons (teacher_id, student_id, kind, starts_at, duration_min)
+     values ($1, $2, 'diagnostic', now() - interval '3 hours', 60) returning id, kind`, [ids.toma, lead.id]);
+  assert.equal(d.kind, 'diagnostic');
+  const pay = async (id) => (await rows(ids.owner, 'select amount from public.lesson_pay where lesson_id = $1', [id])).map((r) => Number(r.amount));
+  assert.deepEqual(await pay(d.id), []);            // booked: nothing yet
+  await rows(ids.toma, `update public.lessons set status = 'no_show' where id = $1`, [d.id]);
+  assert.deepEqual(await pay(d.id), []);            // the student did not come: nothing
+  await rows(ids.toma, `update public.lessons set status = 'done' where id = $1`, [d.id]);
+  assert.deepEqual(await pay(d.id), [400]);         // held: the flat amount
+  // the teacher sees the student of her diagnostic; the diagnostic does not use the package
+  assert.equal((await rows(ids.toma, 'select 1 from public.students where id = $1', [lead.id])).length, 1);
+  const [u] = await rows(ids.owner, 'select lessons_used from public.package_usage where student_id = $1', [lead.id]);
+  assert.equal(Number(u.lessons_used), 0);
+
+  // the same for a trial lesson, and a 90-minute diagnostic is still the flat amount
+  const [long] = await rows(ids.agata,
+    `insert into public.lessons (teacher_id, student_id, kind, starts_at, duration_min, status)
+     values ($1, $2, 'trial', now() - interval '5 hours', 90, 'done') returning id`, [ids.toma, lead.id]);
+  assert.deepEqual(await pay(long.id), [400]);
+
+  // a teacher's own rate for diagnostics, if the school gave her one, wins
+  await rows(ids.owner,
+    `insert into public.teacher_rates (teacher_id, kind, amount, valid_from) values ($1, 'diagnostic', 450, '2026-01-01')`, [ids.agata]);
+  const [own] = await rows(ids.owner,
+    `insert into public.lessons (teacher_id, student_id, kind, starts_at, status)
+     values ($1, $2, 'diagnostic', now() - interval '2 hours', 'done') returning id`, [ids.agata, lead.id]);
+  assert.deepEqual(await pay(own.id), [450]);
+
+  // a teacher cannot book one herself: hers becomes an ordinary lesson
+  await rows(ids.owner, 'update public.students set teacher_id = $2 where id = $1', [lead.id, ids.toma]);
+  const [self] = await rows(ids.toma,
+    `insert into public.lessons (teacher_id, student_id, kind, starts_at)
+     values ($1, $2, 'diagnostic', now() + interval '2 days') returning kind`, [ids.toma, lead.id]);
+  assert.equal(self.kind, 'individual');
+
+  // only the owner is shown the amount
+  const shown = async (uid) => (await rows(uid, 'select public.diagnostic_pay_shown() as a'))[0].a;
+  assert.equal(Number(await shown(ids.owner)), 400);
+  assert.equal(await shown(ids.manager), null);
+  assert.equal(await shown(ids.toma), null);
+});

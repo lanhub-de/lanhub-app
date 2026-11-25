@@ -5,6 +5,7 @@ import { currentMonthStart, fmtMonth } from '@/lib/i18n';
 import { LESSON_SELECT, toView, type LessonDb } from '@/lib/lessons';
 import { addLesson } from '@/app/teacher/actions';
 import Submit from '@/components/Submit';
+import DiagnosticForm from '@/components/DiagnosticForm';
 import BookingFields from '@/components/BookingFields';
 import { bookingLabels } from '@/components/ScheduleLesson';
 
@@ -57,6 +58,10 @@ export default async function LessonsPage({
         </select>
         <Submit>OK</Submit>
       </form>
+
+      <div style={{ marginBottom: 12 }}>
+        <DiagnosticForm t={t} teachers={teachers.data ?? []} students={students.data ?? []} teacherId={sp.teacher} align="left" />
+      </div>
 
       <details className="card" style={{ marginBottom: 16 }}>
         <summary>+ {t('addLesson')}</summary>

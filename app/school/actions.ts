@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { supabaseServer } from '@/lib/supabase/server';
 import { canSendMail, sendInvite } from '@/lib/mail';
-import { currentMonthStart } from '@/lib/i18n';
+import { currentMonthStart, kyivLocalToIso } from '@/lib/i18n';
 import { parseTeacherChoice } from '@/lib/invites';
 
 // Refresh in place after a change (no jump to the top); errors come back in
@@ -55,6 +55,41 @@ export async function updateStudent(f: FormData) {
     notes: optional(f, 'notes'),
   }).eq('id', id);
   done(`/school/students/${id}`, error?.message);
+}
+
+// A diagnostic lesson for a teacher, booked by the school. A new person gets
+// her card here (no teacher assigned yet: that is decided after the
+// diagnostic). The teacher sees the lesson in her schedule and is paid the
+// school's flat amount once it is marked held.
+export async function addDiagnostic(f: FormData) {
+  const local = str(f, 'starts_at');
+  const teacherId = str(f, 'teacher_id');
+  // back to where the form was, or to the journal on that teacher and month
+  const returnTo = str(f, 'return_to')
+    || `/school/lessons?month=${/^\d{4}-\d{2}/.test(local) ? local.slice(0, 7) : currentMonthStart().slice(0, 7)}-01${teacherId ? `&teacher=${teacherId}` : ''}`;
+  if (!teacherId) go(returnTo, 'Choose the teacher');
+  const startsAt = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(local) ? kyivLocalToIso(local.slice(0, 16)) : '';
+  if (!startsAt || Number.isNaN(new Date(startsAt).getTime())) go(returnTo, 'Check the date and time');
+  const minutes = Number(str(f, 'duration_min') || 60);
+  const supabase = await supabaseServer();
+  let studentId = str(f, 'student_id');
+  if (!studentId) {
+    const name = str(f, 'full_name');
+    if (!name) go(returnTo, 'Choose a student or type the new student’s name');
+    const intl = str(f, 'market') === 'intl';
+    const { data, error } = await supabase.from('students').insert({
+      full_name: name, level: optional(f, 'level'), market: intl ? 'intl' : 'ua', locale: intl ? 'en' : 'uk',
+      contact: optional(f, 'contact'),
+    }).select('id').single();
+    if (error || !data) go(returnTo, error?.message ?? 'The student was not added');
+    studentId = data!.id;
+  }
+  const { error } = await supabase.from('lessons').insert({
+    teacher_id: teacherId, student_id: studentId, kind: 'diagnostic', starts_at: startsAt,
+    duration_min: [30, 45, 60, 75, 90].includes(minutes) ? minutes : 60,
+    zoom_url: optional(f, 'zoom_url'), note: (optional(f, 'note') ?? '').slice(0, 300) || null,
+  });
+  go(returnTo, error?.message);
 }
 
 // "Not continuing" / "paused" / back to active: for a student whose package is

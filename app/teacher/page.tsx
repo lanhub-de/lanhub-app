@@ -10,6 +10,7 @@ import { openChat } from '@/app/chat/actions';
 import { LESSON_SELECT as select, type LessonDb } from '@/lib/lessons';
 import { asParam, CabinetSwitch, onlyTheirs, whoseCabinet } from '@/lib/cabinet';
 import Submit from '@/components/Submit';
+import DiagnosticForm from '@/components/DiagnosticForm';
 
 type PayLine = {
   amount: number; currency: string;
@@ -149,12 +150,19 @@ export default async function TeacherPage({ searchParams }: { searchParams: Prom
               <h1 style={{ margin: 0 }}>{who.viewing ? t('cabinetTitle', { name: who.name }) : t('todayHeading')}</h1>
               <span className="muted" style={{ fontSize: 13 }}>{t('todayHint')}</span>
             </div>
-            <ScheduleLesson t={t} locale={profile.locale} returnTo={here}
-              students={myStudents.map((s) => ({ id: s.id, name: s.full_name, level: s.level, left: pkgByStudent.get(s.id)?.lessons_left ?? null }))}
-              groups={(groups.data ?? []).map((g) => ({ id: g.id, name: g.name, tz: g.tz, days: g.days, time: g.start_time }))}
-              teacherId={who.viewing && !who.pending ? who.id : undefined}
-              pending={who.pending}
-              school={profile.role === 'owner' || profile.role === 'head_teacher'} />
+            <span className="row">
+              {/* diagnostics are booked by the school (here: the owner and the head teacher), never by the teacher herself */}
+              {(profile.role === 'owner' || profile.role === 'head_teacher') && !who.pending && (
+                <DiagnosticForm t={t} returnTo={here} teacherId={who.id} teachers={[{ id: who.id, full_name: who.name }]}
+                  students={(students.data ?? []).map((s) => ({ id: s.id, full_name: s.full_name, level: s.level }))} />
+              )}
+              <ScheduleLesson t={t} locale={profile.locale} returnTo={here}
+                students={myStudents.map((s) => ({ id: s.id, name: s.full_name, level: s.level, left: pkgByStudent.get(s.id)?.lessons_left ?? null }))}
+                groups={(groups.data ?? []).map((g) => ({ id: g.id, name: g.name, tz: g.tz, days: g.days, time: g.start_time }))}
+                teacherId={who.viewing && !who.pending ? who.id : undefined}
+                pending={who.pending}
+                school={profile.role === 'owner' || profile.role === 'head_teacher'} />
+            </span>
           </div>
 
           {(unmarked.data?.length ?? 0) > 0 && (
