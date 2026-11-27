@@ -6,5 +6,6 @@ export default async function Home() {
   const { profile } = await requireProfile();
   if (profile.role === 'teacher') redirect('/teacher');
   if (profile.role === 'student') redirect('/me');
+  if (profile.role === 'manager') redirect('/school/today');
   redirect('/school');
 }

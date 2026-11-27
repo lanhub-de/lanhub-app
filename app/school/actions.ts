@@ -93,40 +93,136 @@ export async function addDiagnostic(f: FormData) {
 }
 
 // "Not continuing" / "paused" / back to active: for a student whose package is
-// over. A paused or gone student leaves the "not renewed" list and her
-// teacher's cabinet; her card, lessons and payments stay.
+// over (or who did not buy after a diagnostic). A paused or gone student
+// leaves the to-do lists and her teacher's cabinet; her card, lessons and
+// payments stay. "Not continuing" needs the reason.
 export async function setStudentStatus(f: FormData) {
   const id = str(f, 'id');
   const status = str(f, 'status');
   const returnTo = str(f, 'return_to') || `/school/students/${id}`;
   if (!['active', 'paused', 'left'].includes(status)) go(returnTo, 'Unknown status');
+  const reason = str(f, 'left_reason');
+  if (status === 'left' && f.has('left_reason') && !reason) go(returnTo, 'WHY_NEEDED');
   const supabase = await supabaseServer();
-  const { data, error } = await supabase.from('students').update({ status }).eq('id', id).select('id');
+  const { data, error } = await supabase.from('students').update(
+    status === 'left'
+      ? { status, left_reason: reason || null, left_note: optional(f, 'left_note'), left_at: new Date().toISOString() }
+      : status === 'active' ? { status, left_reason: null, left_note: null, left_at: null } : { status },
+  ).eq('id', id).select('id');
   done(returnTo, error?.message ?? (data?.length ? null : 'Not saved'));
+}
+
+// A manager's mark on a task: "wrote to her" (comes back in a few days if
+// nothing changes) or "done" (feedback received: gone for good).
+export async function markTask(f: FormData) {
+  const returnTo = str(f, 'return_to') || '/school/today';
+  const kind = str(f, 'kind');
+  const remind = str(f, 'mode') === 'remind';
+  const supabase = await supabaseServer();
+  const { error } = await supabase.from('manager_marks').upsert({
+    kind, ref: str(f, 'ref'), student_id: str(f, 'student_id'),
+    remind_at: remind ? new Date(Date.now() + 3 * 864e5).toISOString() : null,
+  }, { onConflict: 'kind,ref' });
+  done(returnTo, error?.message);
+}
+
+// The student paid (the rest of) a package: how many lessons it covers, and the sum if known.
+export async function recordPayment(f: FormData) {
+  const studentId = str(f, 'student_id');
+  const packageId = str(f, 'package_id');
+  const returnTo = str(f, 'return_to') || `/school/students/${studentId}`;
+  const supabase = await supabaseServer();
+  const { data: pkg } = await supabase.from('packages').select('lessons_total, paid_lessons').eq('id', packageId).single();
+  if (!pkg) go(returnTo, 'No such package');
+  const lessons = Math.round(Number(str(f, 'lessons') || 0));
+  const paidNow = pkg!.paid_lessons ?? pkg!.lessons_total;
+  const paid = Math.min(pkg!.lessons_total, (pkg!.paid_lessons ?? 0) + (lessons > 0 ? lessons : pkg!.lessons_total - paidNow));
+  const { error } = await supabase.from('packages')
+    .update({ paid_lessons: paid >= pkg!.lessons_total ? null : paid }).eq('id', packageId);
+  if (error) go(returnTo, error.message);
+  const amount = str(f, 'amount');
+  if (amount) {
+    const { error: payError } = await supabase.from('student_payments').insert({
+      package_id: packageId, amount: Number(amount), currency: str(f, 'currency') || 'UAH', method: optional(f, 'method'),
+      paid_at: /^\d{4}-\d{2}-\d{2}$/.test(str(f, 'paid_at')) ? str(f, 'paid_at') : undefined,
+    });
+    if (payError) go(returnTo, payError.message);
+  }
+  done(returnTo);
+}
+
+// Package fields from a form: lessons, months, a note and how much is paid now.
+function packageFields(f: FormData) {
+  const lessons = Math.round(Number(str(f, 'lessons_total') === 'other' ? str(f, 'lessons_custom') : str(f, 'lessons_total')));
+  const months = Math.round(Number(str(f, 'validity_months') || 1));
+  const paid = Math.round(Number(str(f, 'paid_lessons') || 0));
+  return {
+    lessons,
+    row: {
+      lessons_total: lessons,
+      validity_months: months >= 1 && months <= 24 ? months : 1,
+      note: optional(f, 'note'),
+      paid_lessons: str(f, 'pay') === 'parts' && paid > 0 && paid < lessons ? paid : null,
+    },
+  };
+}
+
+async function addPayment(supabase: Awaited<ReturnType<typeof supabaseServer>>, f: FormData, packageId: string) {
+  const amount = str(f, 'amount');
+  if (!amount) return null;
+  const { error } = await supabase.from('student_payments').insert({
+    package_id: packageId, amount: Number(amount), currency: str(f, 'currency') || 'UAH', method: optional(f, 'method'),
+    paid_at: /^\d{4}-\d{2}-\d{2}$/.test(str(f, 'paid_at')) ? str(f, 'paid_at') : undefined,
+  });
+  return error?.message ?? null;
+}
+
+// A new student with her teacher, and her first package and payment if she has bought one.
+export async function addStudentFull(f: FormData) {
+  const supabase = await supabaseServer();
+  const back = `/school/new${str(f, 'teacher_id') ? `?teacher=${encodeURIComponent(str(f, 'teacher_id'))}` : ''}`;
+  const name = str(f, 'full_name');
+  if (!name) go(back, 'Type the name');
+  const { data, error } = await supabase.from('students').insert({
+    full_name: name,
+    level: optional(f, 'level'),
+    market: str(f, 'market') === 'intl' ? 'intl' : 'ua',
+    locale: str(f, 'market') === 'intl' ? 'en' : 'uk',
+    ...teacherFields(str(f, 'teacher_id')),
+    email: optional(f, 'email'),
+    contact: optional(f, 'contact'),
+    schedule_note: optional(f, 'schedule_note'),
+  }).select('id').single();
+  if (error || !data) go(back, error?.message ?? 'Not saved');
+  const id = data!.id;
+  if (str(f, 'lessons_total')) {
+    const { lessons, row } = packageFields(f);
+    if (!Number.isFinite(lessons) || lessons < 1 || lessons > 200) go(`/school/students/${id}`, 'Check the number of lessons');
+    const { data: pkg, error: pErr } = await supabase.from('packages').insert({ student_id: id, ...row }).select('id').single();
+    if (pErr || !pkg) go(`/school/students/${id}`, pErr?.message ?? 'The package was not added');
+    const payErr = await addPayment(supabase, f, pkg!.id);
+    if (payErr) go(`/school/students/${id}`, payErr);
+  }
+  go(`/school/students/${id}`);
 }
 
 export async function addPackage(f: FormData) {
   const studentId = str(f, 'student_id');
+  const returnTo = str(f, 'return_to') || `/school/students/${studentId}`;
   const supabase = await supabaseServer();
-  const lessons = Math.round(Number(str(f, 'lessons_total')));
-  if (!Number.isFinite(lessons) || lessons < 1 || lessons > 200) go(`/school/students/${studentId}`, 'Check the number of lessons');
-  const months = Math.round(Number(str(f, 'validity_months') || 1));
-  const { data, error } = await supabase.from('packages').insert({
-    student_id: studentId,
-    lessons_total: lessons,
-    validity_months: months >= 1 && months <= 24 ? months : 1,
-    note: optional(f, 'note'),
-  }).select('id').single();
-  if (error) go(`/school/students/${studentId}`, error.message);
-  // payments: the owner and managers (the head teacher has no payment fields)
-  const amount = str(f, 'amount');
-  if (amount) {
-    const { error: payError } = await supabase.from('student_payments').insert({
-      package_id: data!.id, amount: Number(amount), currency: str(f, 'currency') || 'UAH', method: optional(f, 'method'),
-    });
-    if (payError) go(`/school/students/${studentId}`, payError.message);
+  const { lessons, row } = packageFields(f);
+  if (!Number.isFinite(lessons) || lessons < 1 || lessons > 200) go(returnTo, 'Check the number of lessons');
+  // after a diagnostic the student gets her teacher together with the package
+  if (str(f, 'teacher_id')) {
+    const { error: tErr } = await supabase.from('students').update(teacherFields(str(f, 'teacher_id'))).eq('id', studentId);
+    if (tErr) go(returnTo, tErr.message);
   }
-  done(`/school/students/${studentId}`);
+  const { data, error } = await supabase.from('packages').insert({ student_id: studentId, ...row }).select('id').single();
+  if (error) go(returnTo, error.message);
+  // payments: the owner and managers (the head teacher has no payment fields)
+  const payErr = await addPayment(supabase, f, data!.id);
+  if (payErr) go(returnTo, payErr);
+  done(returnTo);
 }
 
 // Fix a package: number of lessons, how long it lasts, its status and a note.
@@ -146,7 +242,7 @@ export async function updatePackage(f: FormData) {
   done(`/school/students/${studentId}`, error?.message);
 }
 
-// Only the owner deletes, and only a card without lessons: a student who has
+// The owner and managers delete, and only a card without lessons: a student who has
 // lessons stays in the history (status "left" hides them from the lists).
 export async function deleteStudent(f: FormData) {
   const id = str(f, 'id');
@@ -156,7 +252,7 @@ export async function deleteStudent(f: FormData) {
   if (count) go(`/school/students/${id}`, 'HAS_LESSONS');
   const { data, error } = await supabase.from('students').delete().eq('id', id).select('id');
   if (error) go(`/school/students/${id}`, error.message);
-  if (!data?.length) go(`/school/students/${id}`, 'Only the owner can delete a student');
+  if (!data?.length) go(`/school/students/${id}`, 'HAS_LESSONS');
   go('/school/students');
 }
 

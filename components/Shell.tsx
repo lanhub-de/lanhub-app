@@ -26,6 +26,7 @@ function navFor(profile: Profile, t: T): NavItem[] {
         { href: '/school/lessons', label: t('navLessons') },
         { href: '/school/payouts', label: t('navPayouts') },
         { href: '/school/team', label: t('navTeam') },
+        { href: '/school/today', label: t('navManagers') },
         ...library,
       ];
     case 'head_teacher':
@@ -40,11 +41,13 @@ function navFor(profile: Profile, t: T): NavItem[] {
       ];
     case 'manager':
       return [
-        { href: '/school', label: t('navOverview') },
-        chat,
+        { href: '/school/today', label: t('navToday') },
+        { href: '/school/teachers', label: t('navTeachers') },
         { href: '/school/students', label: t('navStudents') },
+        { href: '/school/diagnostics', label: t('navDiagnostics') },
         { href: '/school/groups', label: t('navGroups') },
         { href: '/school/lessons', label: t('navLessons') },
+        chat,
       ];
     case 'teacher':
       return [...teaching, chat, ...library];

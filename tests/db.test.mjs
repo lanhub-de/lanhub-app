@@ -1457,3 +1457,48 @@ test('from the set day a teacher books lessons for today and ahead; a day alread
     await db.query(`delete from private.settings where key = 'teacher_no_past_from'`);
   }
 });
+
+test('managers: a package paid in parts, task marks, the reason a student stops, deleting only a card without lessons', async () => {
+  const [stu] = await rows(ids.manager,
+    `insert into public.students (full_name, level, teacher_id) values ('Руслана', 'B2', $1) returning id`, [ids.nadiia]);
+  // paid 4 of 8 now; the second part is recorded when she pays
+  const [pkg] = await rows(ids.manager,
+    `insert into public.packages (student_id, lessons_total, paid_lessons) values ($1, 8, 4) returning id`, [stu.id]);
+  const [u] = await rows(ids.manager, 'select paid_lessons, lessons_left from public.package_usage where package_id = $1', [pkg.id]);
+  assert.equal(u.paid_lessons, 4);
+  await rows(ids.manager, 'update public.packages set paid_lessons = null where id = $1', [pkg.id]);
+  assert.equal((await rows(ids.manager, 'select paid_lessons from public.packages where id = $1', [pkg.id]))[0].paid_lessons, null);
+  // the head teacher may not change payments, a teacher may not touch packages
+  await rows(ids.nadiia, 'update public.packages set paid_lessons = 2 where id = $1', [pkg.id]);
+  assert.equal((await rows(ids.owner, 'select paid_lessons from public.packages where id = $1', [pkg.id]))[0].paid_lessons, null);
+
+  // "I wrote to her": a mark per task, seen by the school, not by teachers
+  await rows(ids.manager,
+    `insert into public.manager_marks (kind, ref, student_id, remind_at) values ('payment', $1, $2, now() + interval '3 days')
+     on conflict (kind, ref) do update set remind_at = excluded.remind_at`, [pkg.id, stu.id]);
+  await rows(ids.manager,
+    `insert into public.manager_marks (kind, ref, student_id) values ('payment', $1, $2)
+     on conflict (kind, ref) do update set remind_at = excluded.remind_at`, [pkg.id, stu.id]);
+  const marks = await rows(ids.agata, 'select remind_at from public.manager_marks where ref = $1', [pkg.id]);
+  assert.equal(marks.length, 1);
+  assert.equal(marks[0].remind_at, null);
+  assert.equal((await rows(ids.nadiia, 'select * from public.manager_marks')).length, 0);
+  assert.ok(await fails(ids.agata, `insert into public.manager_marks (kind, ref, student_id) values ('last', $1, $1)`, [stu.id]));
+
+  // not continuing, with the reason
+  await rows(ids.manager,
+    `update public.students set status = 'left', left_reason = 'price', left_note = 'дорого', left_at = now() where id = $1`, [stu.id]);
+  assert.equal((await rows(ids.owner, 'select left_reason from public.students where id = $1', [stu.id]))[0].left_reason, 'price');
+
+  // a manager deletes a card without lessons, not one with lessons
+  const [empty] = await rows(ids.manager, `insert into public.students (full_name) values ('Помилково') returning id`);
+  await rows(ids.manager, 'delete from public.students where id = $1', [empty.id]);
+  assert.equal((await rows(ids.owner, 'select 1 from public.students where id = $1', [empty.id])).length, 0);
+  await rows(ids.manager,
+    `insert into public.lessons (teacher_id, student_id, kind, starts_at) values ($1, $2, 'diagnostic', now() + interval '1 day')`,
+    [ids.nadiia, stu.id]);
+  await rows(ids.manager, 'delete from public.students where id = $1', [stu.id]);
+  assert.equal((await rows(ids.owner, 'select 1 from public.students where id = $1', [stu.id])).length, 1);
+  // managers still never see pay
+  assert.equal((await rows(ids.manager, 'select * from public.lesson_pay')).length, 0);
+});

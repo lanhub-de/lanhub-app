@@ -9,6 +9,7 @@ import { INVITE, pendingTeachers } from '@/lib/invites';
 import { setStudentStatus } from './actions';
 import Submit from '@/components/Submit';
 import DiagnosticForm from '@/components/DiagnosticForm';
+import WhyForm from '@/components/WhyForm';
 
 type PayoutRow = { teacher_id: string; teacher_name: string; total: number | string; lessons_count: number; review_status: string; currency: string };
 type Person = { id: string; full_name: string; role: string; active: boolean };
@@ -101,14 +102,13 @@ export default async function SchoolOverview() {
                 </span>
               </span>
               <span className="row">
-                {(['paused', 'left'] as const).map((st) => (
-                  <form key={st} action={setStudentStatus}>
-                    <input type="hidden" name="id" value={s.student_id} />
-                    <input type="hidden" name="status" value={st} />
-                    <input type="hidden" name="return_to" value="/school" />
-                    <Submit className="small">{t(st === 'paused' ? 'markPaused' : 'markLeft')}</Submit>
-                  </form>
-                ))}
+                <form action={setStudentStatus}>
+                  <input type="hidden" name="id" value={s.student_id} />
+                  <input type="hidden" name="status" value="paused" />
+                  <input type="hidden" name="return_to" value="/school" />
+                  <Submit className="small">{t('markPaused')}</Submit>
+                </form>
+                <WhyForm t={t} studentId={s.student_id} returnTo="/school" />
               </span>
             </div>
           ))}

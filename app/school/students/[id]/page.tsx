@@ -7,12 +7,14 @@ import { fmtDate, fmtMoney } from '@/lib/i18n';
 import { LESSON_SELECT, toView, type LessonDb } from '@/lib/lessons';
 import { INVITE, pendingTeachers } from '@/lib/invites';
 import InviteStudent from '@/components/InviteStudent';
-import { addPackage, addToGroup, deleteStudent, extendPackage, setStudentStatus, updatePackage, updateStudent } from '../../actions';
+import { addPackage, addToGroup, deleteStudent, extendPackage, recordPayment, setStudentStatus, updatePackage, updateStudent } from '../../actions';
 import Submit from '@/components/Submit';
+import WhyForm from '@/components/WhyForm';
+import PackageFields from '@/components/PackageFields';
 
 export default async function StudentPage({
   params, searchParams,
-}: { params: Promise<{ id: string }>; searchParams: Promise<{ e?: string }> }) {
+}: { params: Promise<{ id: string }>; searchParams: Promise<{ e?: string; pkg?: string }> }) {
   const { supabase, profile, t } = await requireProfile(STAFF);
   const { id } = await params;
   const sp = await searchParams;
@@ -31,6 +33,7 @@ export default async function StudentPage({
     supabase.from('group_members').select('group_id').eq('student_id', id),
     pendingTeachers(supabase),
   ]);
+  const { count: lessonCount } = await supabase.from('lessons').select('id', { count: 'exact', head: true }).eq('student_id', id);
   if (!student.data) notFound();
   const s = student.data;
   const pkgInfo = new Map((packageRows.data ?? []).map((p) => [p.id as string, p as { id: string; validity_months: number; note: string | null }]));
@@ -55,7 +58,7 @@ export default async function StudentPage({
         </div>
       </div>
       {s.schedule_note && <p className="muted" style={{ marginTop: 0 }}>{s.schedule_note}</p>}
-      <Flash error={sp.e === 'HAS_LESSONS' ? t('hasLessons') : sp.e} />
+      <Flash error={sp.e === 'HAS_LESSONS' ? t('hasLessons') : sp.e === 'WHY_NEEDED' ? t('whyNeeded') : sp.e} />
       <div className="grid" style={{ alignItems: 'start' }}>
         <section className="stack">
           <h2>{t('packages')}</h2>
@@ -65,14 +68,18 @@ export default async function StudentPage({
             <div className="attention">
               <strong>{s.status === 'active' ? t('packageOverTitle') : t('studentIs', { status: t(`stu_${s.status}` as never) })}</strong>
               {s.status === 'active' && <span>{t('packageOverHint')}</span>}
+              {s.status === 'left' && s.left_reason && (
+                <span>{t('whyShown', { why: t(`why_${s.left_reason}` as never) })}{s.left_note ? ` · ${s.left_note}` : ''}</span>
+              )}
               <span className="row" style={{ marginTop: 6 }}>
-                {(s.status === 'active' ? ['paused', 'left'] : ['active']).map((st) => (
+                {(s.status === 'active' ? ['paused'] : ['active']).map((st) => (
                   <form key={st} action={setStudentStatus}>
                     <input type="hidden" name="id" value={id} />
                     <input type="hidden" name="status" value={st} />
-                    <Submit className="small">{t(st === 'paused' ? 'markPaused' : st === 'left' ? 'markLeft' : 'markBack')}</Submit>
+                    <Submit className="small">{t(st === 'paused' ? 'markPaused' : 'markBack')}</Submit>
                   </form>
                 ))}
+                {s.status === 'active' && <WhyForm t={t} studentId={id} returnTo={`/school/students/${id}`} />}
               </span>
             </div>
           )}
@@ -84,6 +91,28 @@ export default async function StudentPage({
               </div>
               {p.valid_until && <span className="muted">{t(p.status === 'expired' ? 'pkgMonthOver' : 'validUntil', { date: fmtDate(p.valid_until, profile.locale) })}</span>}
               {p.status === 'expired' && <span className="muted">{t('pkgSpeedUp')}</span>}
+              {p.paid_lessons != null && p.paid_lessons < p.lessons_total && (
+                <span className="pay-due">{t('paidOfRest', { paid: p.paid_lessons, total: p.lessons_total, rest: p.lessons_total - p.paid_lessons })}</span>
+              )}
+              {canSell && p.paid_lessons != null && p.paid_lessons < p.lessons_total && (
+                <details>
+                  <summary className="link-btn">{t('recordPayment')}</summary>
+                  <form action={recordPayment} className="form" style={{ marginTop: 10 }}>
+                    <input type="hidden" name="student_id" value={id} />
+                    <input type="hidden" name="package_id" value={p.package_id} />
+                    <label>{t('payForLessons')}<input name="lessons" type="number" min={1} max={p.lessons_total} defaultValue={p.lessons_total - p.paid_lessons} /></label>
+                    <label>{t('payAmount')}<input name="amount" type="number" min={0} step="0.01" placeholder={t('optional')} /></label>
+                    <label>€ / ₴
+                      <select name="currency" defaultValue={s.market === 'intl' ? 'EUR' : 'UAH'}>
+                        <option value="UAH">UAH</option><option value="EUR">EUR</option><option value="USD">USD</option>
+                      </select>
+                    </label>
+                    <label>{t('payDate')}<input name="paid_at" type="date" defaultValue={new Date().toISOString().slice(0, 10)} /></label>
+                    <label>{t('method')}<input name="method" placeholder="WayForPay, monobank…" /></label>
+                    <Submit className="primary small">{t('save')}</Submit>
+                  </form>
+                </details>
+              )}
               {(paysByPkg.get(p.package_id) ?? []).map((pay, i) => (
                 <span key={i} className="muted">
                   {fmtMoney(pay.amount, pay.currency)}{pay.method ? ` · ${pay.method}` : ''} · {fmtDate(pay.paid_at, profile.locale)}
@@ -121,25 +150,21 @@ export default async function StudentPage({
             </div>
           ))}
           {canPack && (
-            <details className="card">
+            <details className="card" id="pkg" open={sp.pkg === '1'}>
               <summary>+ {t('addPackage')}</summary>
-              <form action={addPackage} className="form" style={{ marginTop: 12 }}>
+              <form action={addPackage} className="stack" style={{ marginTop: 12 }}>
                 <input type="hidden" name="student_id" value={id} />
-                <label>{t('lessonsTotal')}<input name="lessons_total" type="number" min={1} max={200} required defaultValue={8} /></label>
-                <label>{t('pkgMonths')}<input name="validity_months" type="number" min={1} max={24} required defaultValue={1} /></label>
-                <label>{t('note')}<input name="note" placeholder={t('pkgNoteHint')} /></label>
-                {canSell && (
-                  <>
-                    <label>{t('payment')}<input name="amount" type="number" min={0} step="0.01" /></label>
-                    <label>€ / ₴
-                      <select name="currency" defaultValue={s.market === 'intl' ? 'EUR' : 'UAH'}>
-                        <option value="UAH">UAH</option><option value="EUR">EUR</option><option value="USD">USD</option>
-                      </select>
-                    </label>
-                    <label>{t('method')}<input name="method" placeholder="WayForPay, monobank…" /></label>
-                  </>
+                {!s.teacher_id && !s.pending_teacher && (
+                  <label>{t('teacher')}
+                    <select name="teacher_id" required defaultValue="">
+                      <option value="" disabled>…</option>
+                      {(teachers.data ?? []).map((p) => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+                      {invited.map((i) => <option key={i.email} value={`${INVITE}${i.email}`}>{i.full_name} · {t('pending')}</option>)}
+                    </select>
+                  </label>
                 )}
-                <Submit className="primary">{t('add')}</Submit>
+                <PackageFields t={t} canSell={canSell} currency={s.market === 'intl' ? 'EUR' : 'UAH'} />
+                <Submit className="primary">{t('addPackage')}</Submit>
               </form>
             </details>
           )}
@@ -199,7 +224,7 @@ export default async function StudentPage({
             </form>
           </div>
 
-          {profile.role === 'owner' && (
+          {(profile.role === 'owner' || (profile.role === 'manager' && !lessonCount)) && (
             <details className="card">
               <summary style={{ color: 'var(--red)' }}>{t('deleteStudent')}</summary>
               <p className="muted">{t('deleteStudentHint')}</p>
