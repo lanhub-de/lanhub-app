@@ -25,7 +25,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
         </div>
         <div className="row">
           <Link href="/school/diagnostics" className="btn diag-btn">+ {t('diagAdd')}</Link>
-          <Link href="/school/new" className="btn">+ {t('addStudent')}</Link>
+          <Link href="/school/new" className="btn">+ {t('studentTo')}</Link>
           <Link href="/school/teachers" className="btn">{t('navTeachers')}</Link>
         </div>
       </div>
