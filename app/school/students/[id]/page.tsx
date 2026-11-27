@@ -142,6 +142,9 @@ export default async function StudentPage({
                         <option value="cancelled">{t('pkg_cancelled')}</option>
                       </select>
                     </label>
+                    {canSell && (
+                      <label>{t('paidLessonsEdit')}<input name="paid_lessons" type="number" min={1} max={p.lessons_total} defaultValue={p.paid_lessons ?? ''} placeholder={t('paidAllHint')} /></label>
+                    )}
                     <label>{t('note')}<input name="note" defaultValue={pkgInfo.get(p.package_id)?.note ?? ''} placeholder={t('pkgNoteHint')} /></label>
                     <Submit className="primary small">{t('save')}</Submit>
                   </form>

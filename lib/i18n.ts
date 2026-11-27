@@ -717,6 +717,8 @@ const uk = {
   payDate: 'Дата оплати',
   payRestNote: 'Решту не заповнюй. Коли студент доплатить, натисни «Оплату отримано» в завданні або «Записати оплату» в картці студента. Платформа сама нагадає, коли лишиться одне оплачене заняття.',
   recordPayment: 'Записати оплату',
+  paidLessonsEdit: 'Оплачено занять (якщо частинами)',
+  paidAllHint: 'порожньо = повністю',
 };
 
 const en: typeof uk = {
@@ -1425,6 +1427,8 @@ const en: typeof uk = {
   payDate: 'Payment date',
   payRestNote: 'Leave the rest empty. When the student pays the rest, press “Payment received” in the task or “Record a payment” on her card. The platform reminds you when one paid lesson is left.',
   recordPayment: 'Record a payment',
+  paidLessonsEdit: 'Lessons paid (if in parts)',
+  paidAllHint: 'empty = paid in full',
 };
 
 export type Key = keyof typeof uk;

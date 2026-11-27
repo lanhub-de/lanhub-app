@@ -238,6 +238,11 @@ export async function updatePackage(f: FormData) {
     validity_months: months >= 1 && months <= 24 ? months : 1,
     status: ['active', 'finished', 'cancelled'].includes(status) ? status : 'active',
     note: optional(f, 'note'),
+    // paid in parts: how many lessons are paid so far (empty or all = paid in full); owner and managers only
+    ...(f.has('paid_lessons') ? (() => {
+      const paid = Math.round(Number(str(f, 'paid_lessons') || 0));
+      return { paid_lessons: paid > 0 && paid < lessons ? paid : null };
+    })() : {}),
   }).eq('id', str(f, 'package_id'));
   done(`/school/students/${studentId}`, error?.message);
 }
