@@ -92,6 +92,23 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
         <p className="muted" style={{ margin: '0 0 12px' }}>{t('diagFlat', { amount: fmtMoney(Number(diagPay.data)) })}</p>
       )}
 
+      {(people.data ?? []).some((p) => p.role === 'manager') && (
+        <section className="card" style={{ marginBottom: 16 }}>
+          <h2>{t('navManagers')}</h2>
+          {(people.data ?? []).filter((p) => p.role === 'manager').map((p) => (
+            <div key={p.id} className="spread" style={{ padding: '6px 0', borderTop: '1px solid var(--sand)' }}>
+              <span><strong>{p.full_name}</strong> <span className="muted">· {p.email}{!p.active ? ' · off' : ''}</span></span>
+              <form action={setActive}>
+                <input type="hidden" name="id" value={p.id} />
+                <input type="hidden" name="active" value={p.active ? 'false' : 'true'} />
+                <Submit className="small">{p.active ? '⏸ off' : '▶ on'}</Submit>
+              </form>
+            </div>
+          ))}
+          <p className="muted" style={{ margin: '8px 0 0', fontSize: 13 }}>{t('managerOffHint')}</p>
+        </section>
+      )}
+
       <div className="stack">
         {teaching.map((p) => {
           const mine = (rates.data ?? []).filter((r) => r.teacher_id === p.id);
