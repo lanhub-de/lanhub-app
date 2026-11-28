@@ -24,7 +24,8 @@ export default async function NewStudentPage({ searchParams }: { searchParams: P
         <section className="card stack">
           <h2 style={{ margin: 0 }}>1. {t('newStudentCard')}</h2>
           <label>{t('name')}<input name="full_name" required maxLength={120} placeholder={t('realNameHint')} /></label>
-          <label>{t('contact')}<input name="contact" maxLength={200} placeholder="Telegram, Instagram, +380…" /></label>
+          {canSell && <label>Instagram<input name="instagram" maxLength={100} placeholder="@nick" /></label>}
+          <label>{t('contact')}<input name="contact" maxLength={200} placeholder="Telegram, +380…" /></label>
           <div className="two">
             <label>{t('level')}<input name="level" maxLength={20} placeholder="A2, B1…" /></label>
             <label>{t('market')}

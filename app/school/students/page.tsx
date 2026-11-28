@@ -5,17 +5,21 @@ import { packagesByStudent } from '@/lib/lessons';
 import { addGroup, addStudent } from '../actions';
 import { INVITE, pendingTeachers } from '@/lib/invites';
 import Submit from '@/components/Submit';
+import Insta from '@/components/Insta';
 
 export default async function StudentsPage({ searchParams }: { searchParams: Promise<{ e?: string; q?: string }> }) {
   const { supabase, profile, t } = await requireProfile(STAFF);
   const sp = await searchParams;
-  const [students, teachers, packages, groups, invited] = await Promise.all([
+  const canInsta = profile.role === 'owner' || profile.role === 'manager';
+  const [students, teachers, packages, groups, invited, insta] = await Promise.all([
     supabase.from('students').select('id, full_name, level, market, teacher_id, pending_teacher, status').order('full_name'),
     supabase.from('profiles').select('id, full_name, role').in('role', ['teacher', 'head_teacher', 'owner']).eq('active', true).order('full_name'),
     supabase.from('package_usage').select('student_id, lessons_left, status'),
     supabase.from('groups').select('id, name, level, kind, teacher_id, pending_teacher').eq('active', true).order('name'),
     pendingTeachers(supabase),
+    canInsta ? supabase.from('student_instagram').select('student_id, handle') : Promise.resolve({ data: [] }),
   ]);
+  const handle = new Map(((insta.data ?? []) as { student_id: string; handle: string }[]).map((x) => [x.student_id, x.handle]));
   const teacherName = new Map((teachers.data ?? []).map((p) => [p.id, p.full_name]));
   const invitedName = new Map(invited.map((i) => [i.email, i.full_name]));
   const whoTeaches = (x: { teacher_id: string | null; pending_teacher: string | null }) => x.pending_teacher
@@ -24,7 +28,9 @@ export default async function StudentsPage({ searchParams }: { searchParams: Pro
   // the package her next lesson counts from (one past its month still counts)
   const active = packagesByStudent((packages.data ?? []).filter((p) => p.status === 'active' || p.status === 'expired'));
   const q = (sp.q ?? '').toLowerCase();
-  const list = (students.data ?? []).filter((s) => !q || s.full_name.toLowerCase().includes(q));
+  const q2 = q.replace(/^@/, '');
+  const list = (students.data ?? []).filter((s) => !q || s.full_name.toLowerCase().includes(q)
+    || (q2 && (handle.get(s.id) ?? '').toLowerCase().includes(q2)));
 
   return (
     <Shell profile={profile} t={t} active="/school/students">
@@ -50,24 +56,26 @@ export default async function StudentsPage({ searchParams }: { searchParams: Pro
             </select>
           </label>
           <label>{t('emailLabel')}<input type="email" name="email" /></label>
+          {canInsta && <label>Instagram<input name="instagram" placeholder="@nick" maxLength={100} /></label>}
           <label>{t('contact')}<input name="contact" /></label>
           <Submit className="primary">{t('add')}</Submit>
         </form>
       </details>
 
       <form className="row" style={{ marginBottom: 12 }}>
-        <input name="q" defaultValue={sp.q} placeholder="🔍" aria-label="search" style={{ maxWidth: 280 }} />
+        <input name="q" defaultValue={sp.q} placeholder={canInsta ? t('searchNameInsta') : '🔍'} aria-label="search" style={{ maxWidth: 320 }} />
       </form>
 
       <div className="card table-wrap">
         <table>
           <thead>
-            <tr><th>{t('name')}</th><th>{t('level')}</th><th>{t('teacher')}</th><th>{t('market')}</th><th className="num">{t('packages')}</th></tr>
+            <tr><th>{t('name')}</th>{canInsta && <th>Instagram</th>}<th>{t('level')}</th><th>{t('teacher')}</th><th>{t('market')}</th><th className="num">{t('packages')}</th></tr>
           </thead>
           <tbody>
             {list.map((s) => (
               <tr key={s.id}>
                 <td><Link href={`/school/students/${s.id}`}>{s.full_name}</Link>{s.status !== 'active' && <span className="muted"> · {t(`stu_${s.status}` as never)}</span>}</td>
+                {canInsta && <td><Insta handle={handle.get(s.id)} /></td>}
                 <td>{s.level ?? ''}</td>
                 <td>{whoTeaches(s)}</td>
                 <td>{t(s.market === 'intl' ? 'market_intl' : 'market_ua')}</td>

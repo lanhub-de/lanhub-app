@@ -686,3 +686,5 @@ details.why > summary { display: inline-flex; }
 .pay-box { display: flex; flex-direction: column; gap: 10px; padding: 14px; border-radius: 12px; background: var(--ground); border: 1px solid #f0e6da; }
 .pay-note { margin: 0; font-size: 13px; color: #8a4b00; }
 .pay-due { color: #8a4b00; font-size: 14px; font-weight: 500; }
+.insta { font-size: 13px; font-weight: 500; color: #8a3b7a; text-decoration: none; white-space: nowrap; }
+a.insta:hover { text-decoration: underline; color: #6b2a5e; }

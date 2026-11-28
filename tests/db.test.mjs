@@ -1502,3 +1502,14 @@ test('managers: a package paid in parts, task marks, the reason a student stops,
   // managers still never see pay
   assert.equal((await rows(ids.manager, 'select * from public.lesson_pay')).length, 0);
 });
+
+test('Instagram nicknames: the owner and managers see and write them, teachers and the head teacher do not', async () => {
+  const [stu] = await rows(ids.manager, `insert into public.students (full_name, teacher_id) values ('Іра', $1) returning id`, [ids.nadiia]);
+  await rows(ids.manager, `insert into public.student_instagram (student_id, handle) values ($1, 'ira.de')`, [stu.id]);
+  assert.equal((await rows(ids.owner, 'select handle from public.student_instagram where student_id = $1', [stu.id]))[0].handle, 'ira.de');
+  assert.equal((await rows(ids.nadiia, 'select * from public.student_instagram')).length, 0);
+  assert.equal((await rows(ids.agata, 'select * from public.student_instagram')).length, 0);
+  assert.ok(await fails(ids.nadiia, `insert into public.student_instagram (student_id, handle) values ($1, 'x')`, [stu.id]));
+  await rows(ids.manager, `update public.student_instagram set handle = 'ira_de' where student_id = $1`, [stu.id]);
+  assert.equal((await rows(ids.manager, 'select handle from public.student_instagram where student_id = $1', [stu.id]))[0].handle, 'ira_de');
+});

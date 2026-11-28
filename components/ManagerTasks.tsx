@@ -5,6 +5,7 @@ import { TASK_COLOR, TASK_ORDER, type Task, type TaskKind } from '@/lib/manager'
 import { markTask, recordPayment, setStudentStatus } from '@/app/school/actions';
 import WhyForm from '@/components/WhyForm';
 import Submit from '@/components/Submit';
+import Insta from '@/components/Insta';
 
 const fmtN = (n: number | undefined) => String(Math.round((n ?? 0) * 100) / 100).replace('.', ',');
 const fmtDay = (iso: string, locale: Locale) => new Intl.DateTimeFormat(locale === 'uk' ? 'uk-UA' : 'en-GB', { day: 'numeric', month: 'short', timeZone: SCHOOL_TZ }).format(new Date(iso));
@@ -38,8 +39,8 @@ function Wrote({ t, task, returnTo, label, mode = 'remind', className = '' }: { 
 // The managers' to-do list, grouped by what to do. Each row says who, why
 // now, and has the buttons that resolve it.
 export default function ManagerTasks({
-  tasks, t, locale, nameOf, returnTo, only,
-}: { tasks: Task[]; t: T; locale: Locale; nameOf: Map<string, string>; returnTo: string; only?: TaskKind[] }) {
+  tasks, t, locale, nameOf, returnTo, only, insta,
+}: { tasks: Task[]; t: T; locale: Locale; nameOf: Map<string, string>; returnTo: string; only?: TaskKind[]; insta?: Map<string, string> }) {
   const kinds = (only ?? TASK_ORDER).filter((k) => tasks.some((x) => x.kind === k));
   if (kinds.length === 0) return <section className="card"><p className="muted" style={{ margin: 0 }}>{t('tAllDone')}</p></section>;
   const card = (id: string) => `/school/students/${id}`;
@@ -63,7 +64,8 @@ export default function ManagerTasks({
                 <div key={`${kind}-${task.ref}`} className="task-row">
                   <div className="task-main">
                     <div><Link href={card(s.id)} className="task-name">{s.full_name}</Link>
-                      <span className="muted">{[s.level, teacher].filter(Boolean).map((x) => ` · ${x}`).join('')}</span></div>
+                      <span className="muted">{[s.level, teacher].filter(Boolean).map((x) => ` · ${x}`).join('')}</span>
+                      {insta?.get(s.id) && <> · <Insta handle={insta.get(s.id)} /></>}</div>
                     <div className="task-sub">
                       {kind === 'diagnostic' && t('tDiagSub', { date: fmtDateTime(task.lesson!.starts_at, locale) })}
                       {kind === 'last' && (task.next ? t('tLastSub', { date: fmtDateTime(task.next, locale) }) : t('tLastNoDate'))}

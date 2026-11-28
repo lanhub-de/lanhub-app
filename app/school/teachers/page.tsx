@@ -13,7 +13,7 @@ export default async function TeachersPage({ searchParams }: { searchParams: Pro
   return (
     <Shell profile={profile} t={t} active="/school/teachers">
       <Flash error={sp.e} />
-      <TeacherFolders data={data} groups={groupRows.data ?? []} selected={sp.t} t={t} locale={profile.locale} />
+      <TeacherFolders data={data} groups={groupRows.data ?? []} selected={sp.t} t={t} locale={profile.locale} canInsta={profile.role === 'owner' || profile.role === 'manager'} />
     </Shell>
   );
 }

@@ -11,6 +11,7 @@ import { addPackage, addToGroup, deleteStudent, extendPackage, recordPayment, se
 import Submit from '@/components/Submit';
 import WhyForm from '@/components/WhyForm';
 import PackageFields from '@/components/PackageFields';
+import Insta from '@/components/Insta';
 
 export default async function StudentPage({
   params, searchParams,
@@ -34,6 +35,8 @@ export default async function StudentPage({
     pendingTeachers(supabase),
   ]);
   const { count: lessonCount } = await supabase.from('lessons').select('id', { count: 'exact', head: true }).eq('student_id', id);
+  // Instagram: the owner and managers only
+  const insta = canSell ? (await supabase.from('student_instagram').select('handle').eq('student_id', id).maybeSingle()).data?.handle ?? null : null;
   if (!student.data) notFound();
   const s = student.data;
   const pkgInfo = new Map((packageRows.data ?? []).map((p) => [p.id as string, p as { id: string; validity_months: number; note: string | null }]));
@@ -48,7 +51,10 @@ export default async function StudentPage({
     <Shell profile={profile} t={t} active="/school/students">
       <p><Link href="/school/students">← {t('navStudents')}</Link></p>
       <div className="spread" style={{ alignItems: 'center' }}>
-        <h1 style={{ margin: '0 0 6px' }}>{s.full_name}</h1>
+        <div>
+          <h1 style={{ margin: '0 0 6px' }}>{s.full_name}</h1>
+          {insta && <p style={{ margin: '0 0 6px' }}><Insta handle={insta} /></p>}
+        </div>
         <div className="row">
           <Link href={`/students/${id}/preview`} className="btn small">👁 {t('viewAsStudent')}</Link>
           {profile.role !== 'manager' && (s.teacher_id || s.pending_teacher) && (
@@ -199,6 +205,7 @@ export default async function StudentPage({
               </select>
             </label>
             <label>{t('emailLabel')}<input type="email" name="email" defaultValue={s.email ?? ''} /></label>
+            {canSell && <label>Instagram<input name="instagram" defaultValue={insta ?? ''} placeholder="@nick" maxLength={100} /></label>}
             <label>{t('contact')}<input name="contact" defaultValue={s.contact ?? ''} /></label>
             <label>{t('status')}
               <select name="status" defaultValue={s.status}>

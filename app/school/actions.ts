@@ -5,6 +5,7 @@ import { supabaseServer } from '@/lib/supabase/server';
 import { canSendMail, sendInvite } from '@/lib/mail';
 import { currentMonthStart, kyivLocalToIso } from '@/lib/i18n';
 import { parseTeacherChoice } from '@/lib/invites';
+import { cleanInstagram } from '@/lib/instagram';
 
 // Refresh in place after a change (no jump to the top); errors come back in
 // the address. go() is for actions that lead to another page.
@@ -26,6 +27,17 @@ function teacherFields(value: string) {
   return { teacher_id: who.teacher ?? null, pending_teacher: who.invite ?? null };
 }
 
+// The Instagram nickname lives apart from the card teachers read (owner and managers only).
+// Not in the form: left as it is; empty: removed.
+async function setInstagram(supabase: Awaited<ReturnType<typeof supabaseServer>>, studentId: string, f: FormData) {
+  if (!f.has('instagram')) return null;
+  const handle = cleanInstagram(str(f, 'instagram'));
+  const { error } = handle
+    ? await supabase.from('student_instagram').upsert({ student_id: studentId, handle, updated_at: new Date().toISOString() })
+    : await supabase.from('student_instagram').delete().eq('student_id', studentId);
+  return error?.message ?? null;
+}
+
 export async function addStudent(f: FormData) {
   const supabase = await supabaseServer();
   const { data, error } = await supabase.from('students').insert({
@@ -38,7 +50,7 @@ export async function addStudent(f: FormData) {
     contact: optional(f, 'contact'),
   }).select('id').single();
   if (error) go('/school/students', error.message);
-  go(`/school/students/${data!.id}`);
+  go(`/school/students/${data!.id}`, await setInstagram(supabase, data!.id, f));
 }
 
 export async function updateStudent(f: FormData) {
@@ -54,7 +66,7 @@ export async function updateStudent(f: FormData) {
     status: str(f, 'status') || 'active',
     notes: optional(f, 'notes'),
   }).eq('id', id);
-  done(`/school/students/${id}`, error?.message);
+  done(`/school/students/${id}`, error?.message ?? await setInstagram(supabase, id, f));
 }
 
 // A diagnostic lesson for a teacher, booked by the school. A new person gets
@@ -83,6 +95,8 @@ export async function addDiagnostic(f: FormData) {
     }).select('id').single();
     if (error || !data) go(returnTo, error?.message ?? 'The student was not added');
     studentId = data!.id;
+    const igErr = await setInstagram(supabase, studentId, f);
+    if (igErr) go(returnTo, igErr);
   }
   const { error } = await supabase.from('lessons').insert({
     teacher_id: teacherId, student_id: studentId, kind: 'diagnostic', starts_at: startsAt,
@@ -195,6 +209,8 @@ export async function addStudentFull(f: FormData) {
   }).select('id').single();
   if (error || !data) go(back, error?.message ?? 'Not saved');
   const id = data!.id;
+  const igErr = await setInstagram(supabase, id, f);
+  if (igErr) go(`/school/students/${id}`, igErr);
   if (str(f, 'lessons_total')) {
     const { lessons, row } = packageFields(f);
     if (!Number.isFinite(lessons) || lessons < 1 || lessons > 200) go(`/school/students/${id}`, 'Check the number of lessons');

@@ -55,7 +55,7 @@ export default async function SchoolOverview() {
         <h1 style={{ margin: 0, textTransform: 'capitalize' }}>{fmtMonth(month, profile.locale)}</h1>
         <span className="row">
           {isOwner && <span className="muted" style={{ fontSize: 13 }}>{t('autoFromLog')}</span>}
-          <DiagnosticForm t={t} students={allStudents.data ?? []}
+          <DiagnosticForm t={t} students={allStudents.data ?? []} instagram={profile.role === 'owner' || profile.role === 'manager'}
             teachers={(people.data ?? []).filter((p) => p.active && ['teacher', 'head_teacher', 'owner'].includes(p.role))
               .sort((a, b) => a.full_name.localeCompare(b.full_name))} />
         </span>

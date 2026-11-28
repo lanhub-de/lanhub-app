@@ -4,14 +4,15 @@ import { fmtDateTime, fmtInTz, SCHOOL_TZ } from '@/lib/i18n';
 import { buildTasks, TASK_COLOR, taskFor, type ManagerData, type Pkg } from '@/lib/manager';
 import { Meter } from '@/components/ManagerTasks';
 import DiagnosticForm from '@/components/DiagnosticForm';
+import Insta from '@/components/Insta';
 
 export type GroupRow = { id: string; name: string; teacher_id: string | null; tz: string; members: number; lessons_total: number; lessons_done: number; next_at: string | null };
 
 // A folder per teacher: her students with their packages and what each needs
 // now, her groups and her diagnostics.
 export default function TeacherFolders({
-  data, groups, selected, t, locale,
-}: { data: ManagerData; groups: GroupRow[]; selected?: string; t: T; locale: Locale }) {
+  data, groups, selected, t, locale, canInsta = false,
+}: { data: ManagerData; groups: GroupRow[]; selected?: string; t: T; locale: Locale; canInsta?: boolean }) {
   const profile = { locale };
   const fmtDate = (iso: string, l: Locale) => new Intl.DateTimeFormat(l === 'uk' ? 'uk-UA' : 'en-GB', { day: 'numeric', month: 'short', timeZone: SCHOOL_TZ }).format(new Date(iso));
   const sp = { t: selected };
@@ -75,7 +76,7 @@ export default function TeacherFolders({
                 <p className="muted" style={{ margin: '4px 0 0' }}>{t('teacherSummary', { n: active.length, g: sel.groups.length })}</p>
               </div>
               <div className="row">
-                <DiagnosticForm t={t} teacherId={sel.id} returnTo={here} teachers={[{ id: sel.id, full_name: sel.full_name }]}
+                <DiagnosticForm t={t} teacherId={sel.id} returnTo={here} teachers={[{ id: sel.id, full_name: sel.full_name }]} instagram={canInsta}
                   students={data.students.filter((s) => s.status === 'active').map((s) => ({ id: s.id, full_name: s.full_name, level: s.level }))} />
                 <Link href={`/school/new?teacher=${sel.id}`} className="btn primary">+ {t('studentTo', { name: sel.full_name })}</Link>
               </div>
@@ -93,7 +94,8 @@ export default function TeacherFolders({
                         const next = nextOf(s.id);
                         return (
                           <tr key={s.id}>
-                            <td><Link href={`/school/students/${s.id}`} className="task-name">{s.full_name}</Link>{s.level && <span className="muted"> · {s.level}</span>}</td>
+                            <td><Link href={`/school/students/${s.id}`} className="task-name">{s.full_name}</Link>{s.level && <span className="muted"> · {s.level}</span>}
+                              {data.insta.get(s.id) && <div className="t-sub"><Insta handle={data.insta.get(s.id)} /></div>}</td>
                             <td>
                               {p ? (
                                 <>
@@ -143,7 +145,7 @@ export default function TeacherFolders({
                 return (
                   <div key={l.id} className="diag-row">
                     <span className="diag-when">{fmtDateTime(l.starts_at, profile.locale)}</span>
-                    <span className="diag-who">{s ? <Link href={`/school/students/${s.id}`} className="task-name">{s.full_name}</Link> : '—'}{s?.level ? <span className="muted"> · {s.level}</span> : ''}</span>
+                    <span className="diag-who">{s ? <Link href={`/school/students/${s.id}`} className="task-name">{s.full_name}</Link> : '—'}{s?.level ? <span className="muted"> · {s.level}</span> : ''}{s && data.insta.get(s.id) ? <> · <Insta handle={data.insta.get(s.id)} /></> : ''}</span>
                     <span className={`pill ${o.cls}`}>{o.label}</span>
                   </div>
                 );

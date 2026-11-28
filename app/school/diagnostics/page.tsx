@@ -5,6 +5,7 @@ import { fmtDateTime } from '@/lib/i18n';
 import { buildTasks, loadManagerData } from '@/lib/manager';
 import ManagerTasks from '@/components/ManagerTasks';
 import DiagnosticForm from '@/components/DiagnosticForm';
+import Insta from '@/components/Insta';
 
 // Diagnostics: book one for a teacher, see what is coming, and after it is
 // held offer a package (or note why she did not buy).
@@ -31,6 +32,7 @@ export default async function DiagnosticsPage({ searchParams }: { searchParams: 
         <span className="diag-who">
           {s ? <Link href={`/school/students/${s.id}`} className="task-name">{s.full_name}</Link> : '—'}
           <span className="muted">{[s?.level, nameOf.get(l.teacher_id)].filter(Boolean).map((x) => ` · ${x}`).join('')}</span>
+          {s && data.insta.get(s.id) && <> · <Insta handle={data.insta.get(s.id)} /></>}
         </span>
         {label}
       </div>
@@ -44,13 +46,13 @@ export default async function DiagnosticsPage({ searchParams }: { searchParams: 
           <h1 style={{ margin: 0 }}>{t('navDiagnostics')}</h1>
           <p className="muted" style={{ margin: '6px 0 0' }}>{t('diagIntro')}</p>
         </div>
-        <DiagnosticForm t={t} returnTo="/school/diagnostics" teachers={teachers}
+        <DiagnosticForm t={t} returnTo="/school/diagnostics" teachers={teachers} instagram={profile.role === 'owner' || profile.role === 'manager'}
           students={data.students.filter((s) => s.status === 'active').map((s) => ({ id: s.id, full_name: s.full_name, level: s.level }))} />
       </div>
       <Flash error={sp.e === 'WHY_NEEDED' ? t('whyNeeded') : sp.e} />
       <div className="mgr-layout">
         <div className="mgr-main">
-          <ManagerTasks tasks={tasks} only={['diagnostic']} t={t} locale={profile.locale} nameOf={nameOf} returnTo="/school/diagnostics" />
+          <ManagerTasks tasks={tasks} only={['diagnostic']} t={t} locale={profile.locale} nameOf={nameOf} returnTo="/school/diagnostics" insta={data.insta} />
           {unmarked.length > 0 && (
             <section className="card">
               <h2>{t('dgUnmarkedTitle')}</h2>

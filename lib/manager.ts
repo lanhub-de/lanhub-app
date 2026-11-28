@@ -46,7 +46,7 @@ export const kyivDay = (iso: string | Date) =>
 export async function loadManagerData(supabase: SupabaseClient) {
   const since = new Date(Date.now() - 60 * 864e5).toISOString();
   const until = new Date(Date.now() + 45 * 864e5).toISOString();
-  const [students, packages, upcoming, uncovered, diagnostics, marks, people, groups, members] = await Promise.all([
+  const [students, packages, upcoming, uncovered, diagnostics, marks, people, groups, members, insta] = await Promise.all([
     supabase.from('students').select('id, full_name, level, teacher_id, pending_teacher, status, left_reason, created_at').order('full_name').returns<Stu[]>(),
     supabase.from('package_usage').select('package_id, student_id, lessons_total, lessons_used, lessons_left, valid_until, status, paid_lessons, created_at')
       .order('created_at').returns<Pkg[]>(),
@@ -61,6 +61,8 @@ export async function loadManagerData(supabase: SupabaseClient) {
     supabase.from('profiles').select('id, full_name, role, active').order('full_name'),
     supabase.from('groups').select('id, name, level, kind, teacher_id, active').eq('active', true).order('name'),
     supabase.from('group_members').select('group_id, student_id'),
+    // Instagram nicknames: the owner and managers only (others get none)
+    supabase.from('student_instagram').select('student_id, handle'),
   ]);
   return {
     students: students.data ?? [], packages: packages.data ?? [], upcoming: upcoming.data ?? [],
@@ -68,6 +70,7 @@ export async function loadManagerData(supabase: SupabaseClient) {
     people: (people.data ?? []) as { id: string; full_name: string; role: string; active: boolean }[],
     groups: (groups.data ?? []) as { id: string; name: string; level: string | null; kind: string; teacher_id: string | null }[],
     members: (members.data ?? []) as { group_id: string; student_id: string }[],
+    insta: new Map(((insta.data ?? []) as { student_id: string; handle: string }[]).map((x) => [x.student_id, x.handle])),
   };
 }
 export type ManagerData = Awaited<ReturnType<typeof loadManagerData>>;

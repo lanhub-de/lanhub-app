@@ -32,7 +32,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
       <Flash error={sp.e === 'WHY_NEEDED' ? t('whyNeeded') : sp.e} />
       <div className="mgr-layout">
         <div className="mgr-main">
-          <ManagerTasks tasks={tasks} t={t} locale={profile.locale} nameOf={nameOf} returnTo="/school/today" />
+          <ManagerTasks tasks={tasks} t={t} locale={profile.locale} nameOf={nameOf} returnTo="/school/today" insta={data.insta} />
         </div>
         <aside className="mgr-side">
           <TaskCalendar events={events} t={t} locale={profile.locale} />

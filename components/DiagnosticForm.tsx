@@ -7,10 +7,10 @@ import Submit from '@/components/Submit';
 // made right here from a name and a contact. Teachers do not book these
 // themselves; the teacher is paid the school's flat amount once it is held.
 export default function DiagnosticForm({
-  t, teachers, students, teacherId, returnTo, align = 'right',
+  t, teachers, students, teacherId, returnTo, align = 'right', instagram = false,
 }: {
   t: T; teachers: { id: string; full_name: string }[]; students: { id: string; full_name: string; level?: string | null }[];
-  teacherId?: string; returnTo?: string; align?: 'left' | 'right';
+  teacherId?: string; returnTo?: string; align?: 'left' | 'right'; instagram?: boolean;
 }) {
   if (!teachers.length) return null;
   return (
@@ -53,7 +53,8 @@ export default function DiagnosticForm({
             </select>
           </label>
         </div>
-        <label>{t('contact')}<input name="contact" placeholder="Telegram, Instagram, +380…" maxLength={200} /></label>
+        {instagram && <label>Instagram<input name="instagram" placeholder="@nick" maxLength={100} /></label>}
+        <label>{t('contact')}<input name="contact" placeholder="Telegram, +380…" maxLength={200} /></label>
         <label>{t('diagNote')}<textarea name="note" rows={2} maxLength={300} /></label>
         <label>{t('zoomLink')}<input type="url" name="zoom_url" placeholder={t('zoomOptional')} /></label>
         <Submit className="primary">{t('diagSave')}</Submit>
