@@ -35,7 +35,7 @@ export default function TeacherFolders({
     const open = pkgsOf(id).filter((p) => (p.status === 'active' || p.status === 'expired') && Number(p.lessons_left) > 0);
     return open.find((p) => p.status === 'active') ?? open[0] ?? null;
   };
-  const nextOf = (id: string) => data.upcoming.find((l) => l.student_id === id && l.kind === 'individual')?.starts_at ?? null;
+  const nextOf = (id: string) => data.upcoming.find((l) => l.student_id === id && l.kind === 'individual' && new Date(l.starts_at) > new Date())?.starts_at ?? null;
   const active = sel ? sel.students.filter((s) => s.status === 'active') : [];
   const others = sel ? sel.students.filter((s) => s.status !== 'active') : [];
   const diags = sel ? data.diagnostics.filter((l) => l.teacher_id === sel.id).reverse() : [];

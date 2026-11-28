@@ -51,7 +51,8 @@ export async function loadManagerData(supabase: SupabaseClient) {
     supabase.from('package_usage').select('package_id, student_id, lessons_total, lessons_used, lessons_left, valid_until, status, paid_lessons, created_at')
       .order('created_at').returns<Pkg[]>(),
     supabase.from('lessons').select('id, student_id, teacher_id, kind, status, starts_at, duration_min, package_id')
-      .not('student_id', 'is', null).eq('status', 'scheduled').gte('starts_at', new Date(Date.now() - 3 * 3600e3).toISOString()).lte('starts_at', until)
+      // planned lessons ahead, and the past week's ones a teacher has not marked yet
+      .not('student_id', 'is', null).eq('status', 'scheduled').gte('starts_at', new Date(Date.now() - 7 * 864e5).toISOString()).lte('starts_at', until)
       .order('starts_at').returns<Les[]>(),
     supabase.from('lessons').select('id, student_id, teacher_id, kind, status, starts_at, duration_min, package_id')
       .eq('kind', 'individual').is('package_id', null).in('status', ['done', 'no_show', 'late_cancel']).not('student_id', 'is', null).returns<Les[]>(),
@@ -101,14 +102,22 @@ export function buildTasks(d: ManagerData, now = new Date()) {
     const open = list.filter((p) => (p.status === 'active' || p.status === 'expired') && num(p.lessons_left) > 0);
     const cur = open.find((p) => p.status === 'active') ?? open[0] ?? null;
     const hasNext = cur ? open.some((p) => p !== cur) : false;
-    const planned = nextBy.get(s.id) ?? [];
+    // a lesson whose time is over counts as held for the to-do list, even before
+    // the teacher marks it (she has 24 h): the manager writes right after it
+    const all = nextBy.get(s.id) ?? [];
+    const over = (l: Les) => new Date(l.starts_at).getTime() + (l.duration_min || 60) * 60e3 <= now.getTime();
+    const held = all.filter(over);
+    const planned = all.filter((l) => !over(l));
     const next = planned[0]?.starts_at ?? null;
     const base = { student: s, teacherId: s.teacher_id, next, planned: planned.length };
 
     if (cur) {
-      const used = num(cur.lessons_used), total = cur.lessons_total, left = num(cur.lessons_left);
+      const used = num(cur.lessons_used) + held.reduce((sum, l) => sum + units(l.duration_min), 0);
+      const total = cur.lessons_total, left = Math.round((total - used) * 100) / 100;
       const info = { ...base, pkg: cur, used, total, left, paid: cur.paid_lessons };
-      if (!hasNext && left <= 1 && !hidden('last', cur.package_id)) tasks.push({ kind: 'last', ref: cur.package_id, ...info });
+      // after the second-to-last lesson: the next one is the last (a 90- or 120-minute lesson counts as 1.5 or 2)
+      const lastSize = Math.max(1, planned[0] ? units(planned[0].duration_min) : 1);
+      if (!hasNext && left <= lastSize && !hidden('last', cur.package_id)) tasks.push({ kind: 'last', ref: cur.package_id, ...info });
       if (total >= 4 && used >= total / 2 && used < total / 2 + 2 && left > 1 && !hidden('feedback', cur.package_id)) {
         tasks.push({ kind: 'feedback', ref: cur.package_id, ...info });
       }

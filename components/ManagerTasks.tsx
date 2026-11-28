@@ -68,7 +68,7 @@ export default function ManagerTasks({
                       {insta?.get(s.id) && <> · <Insta handle={insta.get(s.id)} /></>}</div>
                     <div className="task-sub">
                       {kind === 'diagnostic' && t('tDiagSub', { date: fmtDateTime(task.lesson!.starts_at, locale) })}
-                      {kind === 'last' && (task.next ? t('tLastSub', { date: fmtDateTime(task.next, locale) }) : t('tLastNoDate'))}
+                      {kind === 'last' && ((task.left ?? 1) <= 0 ? t('tLastDone') : task.next ? t('tLastSub', { date: fmtDateTime(task.next, locale) }) : t('tLastNoDate'))}
                       {kind === 'feedback' && t('tFeedbackSub', { used: fmtN(task.used), total: task.total ?? 0 })}
                       {kind === 'payment' && t('tPaySub', { paid: task.paid ?? 0, total: task.total ?? 0, used: fmtN(task.used) })}
                       {kind === 'renewal' && (task.expired
